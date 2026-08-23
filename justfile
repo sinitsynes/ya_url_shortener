@@ -1,0 +1,9 @@
+run:
+    docker compose up web --build
+
+lint:
+    golangci-lint run --fix
+
+test:
+    go build -o cmd/shortener/shortener ./cmd/shortener/ && \
+    ./shortenertest_v2-darwin-arm64 -test.v -test.run='^TestIteration1$' -binary-path=cmd/shortener/shortener
