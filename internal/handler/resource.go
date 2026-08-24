@@ -4,19 +4,27 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"ya_url_shortener/internal/repository"
+	"ya_url_shortener/internal/model"
 	"ya_url_shortener/internal/service"
 )
 
-type Handler struct {
-	serverAddress string
-	storage       repository.MemoryStorage
+type Controller interface {
+	CreateResource(url string) model.Resource
+	GetResource(id int32) (model.Resource, error)
 }
 
-func NewHandler() *Handler {
+type Handler struct {
+	serverAddress string
+	controller    Controller
+}
+
+func NewHandler(controller Controller) *Handler {
+	if controller == nil {
+		controller = service.NewResourceController()
+	}
 	return &Handler{
 		serverAddress: "http://localhost:8080",
-		storage:       repository.NewStorage(),
+		controller:    controller,
 	}
 }
 
@@ -31,8 +39,9 @@ func (h *Handler) CreateUrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	bodyString := string(bodyBytes)
-	shortened := service.CreateResource(h.storage, bodyString)
-	resp := h.serverAddress + "/" + shortened
+	resource := h.controller.CreateResource(bodyString)
+	resp := h.serverAddress + "/" + resource.Shortened
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(resp)) //nolint: errcheck
 }
@@ -52,11 +61,11 @@ func (h *Handler) GetUrl(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Ошибка преобразования идентификатора", http.StatusBadRequest)
 		return
 	}
-	resource, err := service.GetResource(h.storage, int32(identifier))
+	resource, err := h.controller.GetResource(int32(identifier))
 	if err != nil {
 		http.Error(w, "Ошибка получения ресурса", http.StatusBadRequest)
 		return
 	}
-	w.Header().Add("Location", resource)
+	w.Header().Add("Location", resource.Address)
 	w.WriteHeader(http.StatusTemporaryRedirect)
 }

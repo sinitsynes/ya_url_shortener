@@ -5,11 +5,13 @@ import (
 	"ya_url_shortener/internal/config"
 	"ya_url_shortener/internal/handler"
 	"ya_url_shortener/internal/infra/httpserver"
+	"ya_url_shortener/internal/service"
 )
 
 func main() {
 	c := config.Load()
-	h := handler.NewHandler()
+	controller := service.NewResourceController()
+	h := handler.NewHandler(controller)
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /", h.CreateUrl)
 	mux.HandleFunc("GET /{id}", h.GetUrl)
