@@ -13,22 +13,22 @@ type Controller interface {
 	GetResource(id int32) (model.Resource, error)
 }
 
-type Handler struct {
+type ResourceHandler struct {
 	serverAddress string
 	controller    Controller
 }
 
-func NewHandler(controller Controller) *Handler {
+func NewResourceHandler(controller Controller) *ResourceHandler {
 	if controller == nil {
 		controller = service.NewResourceController()
 	}
-	return &Handler{
+	return &ResourceHandler{
 		serverAddress: "http://localhost:8080",
 		controller:    controller,
 	}
 }
 
-func (h *Handler) CreateUrl(w http.ResponseWriter, r *http.Request) {
+func (h *ResourceHandler) CreateUrl(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Метод недоступен", http.StatusBadRequest)
 		return
@@ -46,7 +46,7 @@ func (h *Handler) CreateUrl(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(resp)) //nolint: errcheck
 }
 
-func (h *Handler) GetUrl(w http.ResponseWriter, r *http.Request) {
+func (h *ResourceHandler) GetUrl(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Метод недоступен", http.StatusBadRequest)
 		return

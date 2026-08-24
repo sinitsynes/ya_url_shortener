@@ -11,11 +11,9 @@ import (
 func main() {
 	c := config.Load()
 	controller := service.NewResourceController()
-	h := handler.NewHandler(controller)
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /", h.CreateUrl)
-	mux.HandleFunc("GET /{id}", h.GetUrl)
-	server := httpserver.NewServer(c, mux)
+	h := handler.NewResourceHandler(controller)
+	router := handler.NewRouter(h)
+	server := httpserver.NewServer(c, router)
 	err := server.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
 		panic(err)

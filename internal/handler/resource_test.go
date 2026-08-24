@@ -42,7 +42,7 @@ func TestCreateUrl(t *testing.T) {
 		},
 	}
 	controller := service.NewResourceController()
-	handler := NewHandler(controller)
+	handler := NewResourceHandler(controller)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(test.want.input))
@@ -75,7 +75,7 @@ func TestGetUrl(t *testing.T) {
 		},
 	}
 	controller := service.NewResourceController()
-	handler := NewHandler(controller)
+	handler := NewResourceHandler(controller)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
