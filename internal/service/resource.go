@@ -3,16 +3,17 @@ package service
 import (
 	"ya_url_shortener/internal/model"
 	"ya_url_shortener/internal/repository"
+	"ya_url_shortener/pkg/encoder"
 )
 
-type Storager interface {
+type Repository interface {
 	CreateResource(addr string) model.Resource
 	GetResource(id int32) (model.Resource, error)
 	UpdateResource(model.Resource) (model.Resource, error)
 }
 
 type Controller struct {
-	store Storager
+	store Repository
 }
 
 func NewResourceController() *Controller {
@@ -20,8 +21,8 @@ func NewResourceController() *Controller {
 }
 
 func (s *Controller) CreateResource(url string) model.Resource {
-	newResource := s.store.CreateResource(url)        // создаем ресурс, получаем идентификатор
-	shortenedUrl := encodeUrl(newResource.Identifier) //создаем короткий юрл, исходя из айди
+	newResource := s.store.CreateResource(url)                // создаем ресурс, получаем идентификатор
+	shortenedUrl := encoder.EncodeUrl(newResource.Identifier) //создаем короткий юрл, исходя из айди
 	newResource.Shortened = shortenedUrl
 	s.store.UpdateResource(newResource) // обновляем ресурс
 	return newResource

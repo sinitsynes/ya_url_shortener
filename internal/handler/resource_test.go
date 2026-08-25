@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"testing"
+	"ya_url_shortener/internal/config"
 	"ya_url_shortener/internal/service"
 
 	"github.com/stretchr/testify/assert"
@@ -27,6 +28,12 @@ type wantGetUrl struct {
 }
 
 func TestCreateUrl(t *testing.T) {
+	cfg := &config.Config{
+		HTTPServer: config.HTTPServer{Host: "localhost", Port: "8080"},
+		BaseUrl:    "http://localhost:8080",
+	}
+	controller := service.NewResourceController()
+	handler := NewResourceHandler(cfg, controller)
 	tests := []struct {
 		name string
 		want wantCreateUrl
@@ -36,13 +43,11 @@ func TestCreateUrl(t *testing.T) {
 			want: wantCreateUrl{
 				code:        201,
 				input:       []byte("https://practicum.yandex.ru/"),
-				response:    "http://localhost:8080/1",
+				response:    cfg.BaseUrl + "/1",
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
 	}
-	controller := service.NewResourceController()
-	handler := NewResourceHandler(controller)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(test.want.input))
@@ -61,12 +66,19 @@ func TestCreateUrl(t *testing.T) {
 }
 
 func TestGetUrl(t *testing.T) {
+	cfg := &config.Config{
+		HTTPServer: config.HTTPServer{Host: "localhost", Port: "8080"},
+		BaseUrl:    "http://localhost:8080",
+	}
+	controller := service.NewResourceController()
+	handler := NewResourceHandler(cfg, controller)
+
 	tests := []struct {
 		name string
 		want wantGetUrl
 	}{
 		{
-			name: "positive test #1",
+			name: "positive test #2",
 			want: wantGetUrl{
 				code:     307,
 				input:    1,
@@ -74,9 +86,6 @@ func TestGetUrl(t *testing.T) {
 			},
 		},
 	}
-	controller := service.NewResourceController()
-	handler := NewResourceHandler(controller)
-
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			newResource := controller.CreateResource(test.want.response)

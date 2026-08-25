@@ -11,7 +11,7 @@ import (
 func main() {
 	c := config.Load()
 	controller := service.NewResourceController()
-	h := handler.NewResourceHandler(controller)
+	h := handler.NewResourceHandler(c, controller)
 	router := handler.NewRouter(h)
 	server := httpserver.NewServer(c, router)
 	err := server.ListenAndServe()

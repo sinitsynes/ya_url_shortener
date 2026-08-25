@@ -15,4 +15,4 @@ WORKDIR /app
 
 COPY --from=builder /build/app .
 
-ENTRYPOINT ["./app"]
+ENTRYPOINT ["./app -a=0.0.0.0:8000 -b=localhost:8000"]

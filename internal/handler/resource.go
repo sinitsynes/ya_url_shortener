@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"ya_url_shortener/internal/config"
 	"ya_url_shortener/internal/model"
 	"ya_url_shortener/internal/service"
 )
@@ -14,17 +15,17 @@ type Controller interface {
 }
 
 type ResourceHandler struct {
-	serverAddress string
-	controller    Controller
+	baseUrl    string
+	controller Controller
 }
 
-func NewResourceHandler(controller Controller) *ResourceHandler {
+func NewResourceHandler(c *config.Config, controller Controller) *ResourceHandler {
 	if controller == nil {
 		controller = service.NewResourceController()
 	}
 	return &ResourceHandler{
-		serverAddress: "http://localhost:8080",
-		controller:    controller,
+		baseUrl:    c.BaseUrl,
+		controller: controller,
 	}
 }
 
@@ -40,7 +41,7 @@ func (h *ResourceHandler) CreateUrl(w http.ResponseWriter, r *http.Request) {
 	}
 	bodyString := string(bodyBytes)
 	resource := h.controller.CreateResource(bodyString)
-	resp := h.serverAddress + "/" + resource.Shortened
+	resp := h.baseUrl + "/" + resource.Shortened
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(resp)) //nolint: errcheck
