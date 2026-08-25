@@ -56,7 +56,7 @@ func TestCreateUrl(t *testing.T) {
 			res := writer.Result()
 
 			assert.Equal(t, test.want.code, res.StatusCode)
-			defer request.Body.Close()
+			defer request.Body.Close() //nolint:errcheck
 			resBody, err := io.ReadAll(res.Body)
 			require.NoError(t, err)
 			assert.Equal(t, test.want.response, string(resBody))
@@ -94,7 +94,7 @@ func TestGetUrl(t *testing.T) {
 			writer := httptest.NewRecorder()
 			handler.GetUrl(writer, request)
 			res := writer.Result()
-			defer res.Body.Close()
+			defer res.Body.Close() //nolint:errcheck
 
 			assert.Equal(t, test.want.code, res.StatusCode)
 			assert.Equal(t, test.want.response, res.Header.Get("Location"))

@@ -24,7 +24,7 @@ func (s *Controller) CreateResource(url string) model.Resource {
 	newResource := s.store.CreateResource(url)                // создаем ресурс, получаем идентификатор
 	shortenedUrl := encoder.EncodeUrl(newResource.Identifier) //создаем короткий юрл, исходя из айди
 	newResource.Shortened = shortenedUrl
-	s.store.UpdateResource(newResource) // обновляем ресурс
+	s.store.UpdateResource(newResource) //nolint:errcheck // обновляем ресурс
 	return newResource
 }
 
