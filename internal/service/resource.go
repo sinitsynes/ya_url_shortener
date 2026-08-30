@@ -20,8 +20,8 @@ func NewResourceController(repository Repository) *Controller {
 }
 
 func (s *Controller) CreateResource(url string) (model.Resource, error) {
-	newResource := s.store.CreateResource(url)               // создаем ресурс, получаем идентификатор
-	shortenedUrl, err := encoder.EncodeUrl(newResource.Salt) //создаем короткий юрл, исходя из хешируемой соли
+	newResource := s.store.CreateResource(url)                        // создаем ресурс, получаем идентификатор
+	shortenedUrl, err := encoder.EncodeUUIDToString(newResource.Salt) //создаем короткий юрл, исходя из хешируемой соли
 	if err != nil {
 		return model.Resource{}, err
 	}
