@@ -9,10 +9,7 @@ import (
 
 const base62 = `0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ`
 
-var (
-	ErrInvalidBase62 = errors.New("invalid base62 character")
-	ErrInvalidId     = errors.New("invalid id")
-)
+var ErrInvalidId = errors.New("invalid id")
 
 func EncodeUUIDToString(id uuid.UUID) (string, error) {
 	if id == uuid.Nil {
