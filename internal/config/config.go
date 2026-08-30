@@ -2,29 +2,25 @@ package config
 
 import (
 	"flag"
-	"strings"
+	"ya_url_shortener/internal/config/server"
 )
 
-type HTTPServer struct {
-	Host string
-	Port string
-}
-
 type Config struct {
-	HTTPServer HTTPServer
+	HTTPServer server.HTTPServer
 	BaseUrl    string
 }
 
 var (
-	addr    = flag.String("a", "0.0.0.0:8080", "application address")
-	baseURL = flag.String("b", "http://localhost:8080", "shortened base url address")
+	httpAddr        = flag.String("a", "0.0.0.0:8080", "application address")
+	redirectBaseURL = flag.String("b", "http://localhost:8080", "shortened base url address")
 )
 
 func Load() *Config {
 	flag.Parse()
-	parts := strings.Split(*addr, ":")
+	baseUrl := *redirectBaseURL
+
 	return &Config{
-		HTTPServer: HTTPServer{Host: parts[0], Port: parts[1]},
-		BaseUrl:    *baseURL,
+		HTTPServer: server.HTTPServer{URL: *httpAddr},
+		BaseUrl:    baseUrl,
 	}
 }

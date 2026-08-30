@@ -4,13 +4,11 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"ya_url_shortener/internal/config"
 	"ya_url_shortener/internal/model"
-	"ya_url_shortener/internal/service"
 )
 
 type Controller interface {
-	CreateResource(url string) model.Resource
+	CreateResource(url string) (model.Resource, error)
 	GetResource(id int32) (model.Resource, error)
 }
 
@@ -19,28 +17,25 @@ type ResourceHandler struct {
 	controller Controller
 }
 
-func NewResourceHandler(c *config.Config, controller Controller) *ResourceHandler {
-	if controller == nil {
-		controller = service.NewResourceController()
-	}
+func NewResourceHandler(baseUrl string, controller Controller) *ResourceHandler {
 	return &ResourceHandler{
-		baseUrl:    c.BaseUrl,
+		baseUrl:    baseUrl,
 		controller: controller,
 	}
 }
 
 func (h *ResourceHandler) CreateUrl(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Метод недоступен", http.StatusBadRequest)
-		return
-	}
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Ошибка чтения запроса", http.StatusBadRequest)
 		return
 	}
 	bodyString := string(bodyBytes)
-	resource := h.controller.CreateResource(bodyString)
+	resource, err := h.controller.CreateResource(bodyString)
+	if err != nil {
+		http.Error(w, "Ошибка создания ресурса", http.StatusInternalServerError)
+		return
+	}
 	resp := h.baseUrl + "/" + resource.Shortened
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusCreated)
@@ -48,10 +43,6 @@ func (h *ResourceHandler) CreateUrl(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ResourceHandler) GetUrl(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Метод недоступен", http.StatusBadRequest)
-		return
-	}
 	id := r.PathValue("id")
 	if id == "" {
 		http.Error(w, "Ошибка чтения идентификатора", http.StatusBadRequest)

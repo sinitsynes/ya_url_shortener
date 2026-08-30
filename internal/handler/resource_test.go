@@ -5,9 +5,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strconv"
 	"testing"
 	"ya_url_shortener/internal/config"
+	"ya_url_shortener/internal/config/server"
+	"ya_url_shortener/internal/repository"
 	"ya_url_shortener/internal/service"
 
 	"github.com/stretchr/testify/assert"
@@ -17,7 +20,7 @@ import (
 type wantCreateUrl struct {
 	code        int
 	input       []byte
-	response    string
+	baseUrl     string
 	contentType string
 }
 
@@ -27,13 +30,15 @@ type wantGetUrl struct {
 	response string
 }
 
-func TestCreateUrl(t *testing.T) {
-	cfg := &config.Config{
-		HTTPServer: config.HTTPServer{Host: "localhost", Port: "8080"},
+func testAppConfig() *config.Config {
+	return &config.Config{
+		HTTPServer: server.HTTPServer{URL: "localhost:8000"},
 		BaseUrl:    "http://localhost:8080",
 	}
-	controller := service.NewResourceController()
-	handler := NewResourceHandler(cfg, controller)
+}
+
+func TestCreateUrl(t *testing.T) {
+	cfg := testAppConfig()
 	tests := []struct {
 		name string
 		want wantCreateUrl
@@ -43,13 +48,16 @@ func TestCreateUrl(t *testing.T) {
 			want: wantCreateUrl{
 				code:        201,
 				input:       []byte("https://practicum.yandex.ru/"),
-				response:    cfg.BaseUrl + "/1",
+				baseUrl:     cfg.BaseUrl,
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			repo := repository.NewStore()
+			controller := service.NewResourceController(repo)
+			handler := NewResourceHandler(cfg.BaseUrl, controller)
 			request := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(test.want.input))
 			writer := httptest.NewRecorder()
 			handler.CreateUrl(writer, request)
@@ -59,20 +67,17 @@ func TestCreateUrl(t *testing.T) {
 			defer request.Body.Close() //nolint:errcheck
 			resBody, err := io.ReadAll(res.Body)
 			require.NoError(t, err)
-			assert.Equal(t, test.want.response, string(resBody))
+			assert.Regexp(t,
+				`^`+regexp.QuoteMeta(test.want.baseUrl)+`/[0-9A-Za-z]+$`,
+				string(resBody),
+			)
 			assert.Equal(t, test.want.contentType, res.Header.Get("Content-Type"))
 		})
 	}
 }
 
 func TestGetUrl(t *testing.T) {
-	cfg := &config.Config{
-		HTTPServer: config.HTTPServer{Host: "localhost", Port: "8080"},
-		BaseUrl:    "http://localhost:8080",
-	}
-	controller := service.NewResourceController()
-	handler := NewResourceHandler(cfg, controller)
-
+	cfg := testAppConfig()
 	tests := []struct {
 		name string
 		want wantGetUrl
@@ -88,9 +93,15 @@ func TestGetUrl(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			newResource := controller.CreateResource(test.want.response)
+			repo := repository.NewStore()
+			controller := service.NewResourceController(repo)
+			handler := NewResourceHandler(cfg.BaseUrl, controller)
+
+			created, createdErr := controller.CreateResource(test.want.response)
+			require.NoError(t, createdErr)
+
 			request := httptest.NewRequest(http.MethodGet, "/", nil)
-			request.SetPathValue("id", strconv.Itoa(int(newResource.Identifier)))
+			request.SetPathValue("id", strconv.Itoa(int(created.Identifier)))
 			writer := httptest.NewRecorder()
 			handler.GetUrl(writer, request)
 			res := writer.Result()

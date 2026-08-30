@@ -2,30 +2,35 @@ package service
 
 import (
 	"ya_url_shortener/internal/model"
-	"ya_url_shortener/internal/repository"
 	"ya_url_shortener/pkg/encoder"
 )
 
 type Repository interface {
 	CreateResource(addr string) model.Resource
-	GetResource(id int32) (model.Resource, error)
-	UpdateResource(model.Resource) (model.Resource, error)
+	GetResource(int32) (model.Resource, error)
+	UpdateResource(int32, model.Resource) (model.Resource, error)
 }
 
 type Controller struct {
 	store Repository
 }
 
-func NewResourceController() *Controller {
-	return &Controller{store: repository.NewStore()}
+func NewResourceController(repository Repository) *Controller {
+	return &Controller{store: repository}
 }
 
-func (s *Controller) CreateResource(url string) model.Resource {
-	newResource := s.store.CreateResource(url)                // создаем ресурс, получаем идентификатор
-	shortenedUrl := encoder.EncodeUrl(newResource.Identifier) //создаем короткий юрл, исходя из айди
+func (s *Controller) CreateResource(url string) (model.Resource, error) {
+	newResource := s.store.CreateResource(url)               // создаем ресурс, получаем идентификатор
+	shortenedUrl, err := encoder.EncodeUrl(newResource.Salt) //создаем короткий юрл, исходя из хешируемой соли
+	if err != nil {
+		return model.Resource{}, err
+	}
 	newResource.Shortened = shortenedUrl
-	s.store.UpdateResource(newResource) //nolint:errcheck // обновляем ресурс
-	return newResource
+	resource, err := s.store.UpdateResource(newResource.Identifier, newResource) // обновляем ресурс
+	if err != nil {
+		return model.Resource{}, err
+	}
+	return resource, nil
 }
 
 func (s *Controller) GetResource(id int32) (model.Resource, error) {
