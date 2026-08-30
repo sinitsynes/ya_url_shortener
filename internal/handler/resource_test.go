@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
-	"strconv"
 	"testing"
 	"ya_url_shortener/internal/config"
 	"ya_url_shortener/internal/config/server"
@@ -33,7 +32,7 @@ type wantGetUrl struct {
 func testAppConfig() *config.Config {
 	return &config.Config{
 		HTTPServer: server.HTTPServer{URL: "localhost:8000"},
-		BaseUrl:    "http://localhost:8080",
+		BaseURL:    "http://localhost:8080",
 	}
 }
 
@@ -48,7 +47,7 @@ func TestCreateUrl(t *testing.T) {
 			want: wantCreateUrl{
 				code:        201,
 				input:       []byte("https://practicum.yandex.ru/"),
-				baseUrl:     cfg.BaseUrl,
+				baseUrl:     cfg.BaseURL,
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
@@ -57,7 +56,7 @@ func TestCreateUrl(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			repo := repository.NewStore()
 			controller := service.NewResourceController(repo)
-			handler := NewResourceHandler(cfg.BaseUrl, controller)
+			handler := NewResourceHandler(cfg.BaseURL, controller)
 			request := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(test.want.input))
 			writer := httptest.NewRecorder()
 			handler.CreateUrl(writer, request)
@@ -95,13 +94,13 @@ func TestGetUrl(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			repo := repository.NewStore()
 			controller := service.NewResourceController(repo)
-			handler := NewResourceHandler(cfg.BaseUrl, controller)
+			handler := NewResourceHandler(cfg.BaseURL, controller)
 
 			created, createdErr := controller.CreateResource(test.want.response)
 			require.NoError(t, createdErr)
 
 			request := httptest.NewRequest(http.MethodGet, "/", nil)
-			request.SetPathValue("id", strconv.Itoa(int(created.Identifier)))
+			request.SetPathValue("url", created.Shortened)
 			writer := httptest.NewRecorder()
 			handler.GetUrl(writer, request)
 			res := writer.Result()

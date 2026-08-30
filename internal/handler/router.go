@@ -18,7 +18,7 @@ func NewRouter(handler Handler) *chi.Mux {
 	r.Use(middleware.Recoverer)
 
 	r.Post("/", handler.CreateUrl)
-	r.Get("/{id}", handler.GetUrl)
+	r.Get("/{url}", handler.GetUrl)
 
 	return r
 }

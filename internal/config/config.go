@@ -7,7 +7,7 @@ import (
 
 type Config struct {
 	HTTPServer server.HTTPServer
-	BaseUrl    string
+	BaseURL    string
 }
 
 var (
@@ -21,6 +21,6 @@ func Load() *Config {
 
 	return &Config{
 		HTTPServer: server.HTTPServer{URL: *httpAddr},
-		BaseUrl:    baseUrl,
+		BaseURL:    baseUrl,
 	}
 }

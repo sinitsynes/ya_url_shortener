@@ -3,13 +3,12 @@ package handler
 import (
 	"io"
 	"net/http"
-	"strconv"
 	"ya_url_shortener/internal/model"
 )
 
 type Controller interface {
 	CreateResource(url string) (model.Resource, error)
-	GetResource(id int32) (model.Resource, error)
+	GetResource(shortenedUrl string) (model.Resource, error)
 }
 
 type ResourceHandler struct {
@@ -43,17 +42,12 @@ func (h *ResourceHandler) CreateUrl(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ResourceHandler) GetUrl(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	if id == "" {
+	identifier := r.PathValue("url")
+	if identifier == "" {
 		http.Error(w, "Ошибка чтения идентификатора", http.StatusBadRequest)
 		return
 	}
-	identifier, err := strconv.Atoi(id)
-	if err != nil {
-		http.Error(w, "Ошибка преобразования идентификатора", http.StatusBadRequest)
-		return
-	}
-	resource, err := h.controller.GetResource(int32(identifier))
+	resource, err := h.controller.GetResource(identifier)
 	if err != nil {
 		http.Error(w, "Ошибка получения ресурса", http.StatusBadRequest)
 		return

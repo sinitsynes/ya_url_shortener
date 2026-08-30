@@ -2,48 +2,59 @@ package repository
 
 import (
 	"errors"
-	"sync/atomic"
 	"ya_url_shortener/internal/model"
 
 	"github.com/google/uuid"
 )
 
-type MemoryStorage map[int32]model.Resource
+type MemoryStorage map[uuid.UUID]model.Resource
+type LookupStorage map[string]uuid.UUID // в отсутствие БД лукап для поиска ресурсов по коротким юрлам
 type Store struct {
-	store MemoryStorage
+	store  MemoryStorage
+	lookup LookupStorage
 }
 
 var (
-	counter     atomic.Int32
 	ErrNotFound = errors.New("not found")
 	ErrConflict = errors.New("integrity error")
 )
 
 func NewStore() *Store {
-	return &Store{make(MemoryStorage)}
+	return &Store{store: make(MemoryStorage), lookup: make(LookupStorage)}
 }
 
 func (s *Store) CreateResource(addr string) model.Resource {
-	id := counter.Add(1)
-	salt := uuid.New()
-	r := model.Resource{Identifier: id, Address: addr, Salt: salt}
-	s.store[id] = r
+	r := model.Resource{ID: uuid.New(), Address: addr}
+	s.store[r.ID] = r
 	return r
 }
 
-func (s *Store) GetResource(id int32) (model.Resource, error) {
-	item, exists := s.store[id]
+func (s *Store) GetResourceByID(ID uuid.UUID) (model.Resource, error) {
+	item, exists := s.store[ID]
 	if !exists {
 		return model.Resource{}, ErrNotFound
 	}
+
 	return item, nil
 }
 
-func (s *Store) UpdateResource(id int32, toUpdate model.Resource) (model.Resource, error) {
-	r, err := s.GetResource(id)
+func (s *Store) UpdateResource(ID uuid.UUID, toUpdate model.Resource) (model.Resource, error) {
+	r, err := s.GetResourceByID(ID)
 	if err != nil {
 		return r, err
 	}
-	s.store[r.Identifier] = toUpdate
+	s.store[r.ID] = toUpdate
 	return toUpdate, nil
+}
+
+func (s *Store) SaveToLookup(r model.Resource) {
+	s.lookup[r.Shortened] = r.ID
+}
+
+func (s *Store) GetResourceByURL(shortenedURL string) (model.Resource, error) {
+	id, exists := s.lookup[shortenedURL]
+	if !exists {
+		return model.Resource{}, ErrNotFound
+	}
+	return s.GetResourceByID(id)
 }
