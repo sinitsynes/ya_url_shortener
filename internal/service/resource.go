@@ -8,11 +8,9 @@ import (
 )
 
 type Repository interface {
-	CreateResource(addr string) model.Resource
+	CreateResource(model.Resource) model.Resource
 	GetResourceByID(uuid.UUID) (model.Resource, error)
-	UpdateResource(uuid.UUID, model.Resource) (model.Resource, error)
 	GetResourceByURL(string) (model.Resource, error)
-	SaveToLookup(model.Resource)
 }
 
 type Controller struct {
@@ -23,19 +21,19 @@ func NewResourceController(repository Repository) *Controller {
 	return &Controller{store: repository}
 }
 
-func (s *Controller) CreateResource(URL string) (model.Resource, error) {
-	newResource := s.store.CreateResource(URL)                      // создаем ресурс, получаем идентификатор
-	shortenedUrl, err := encoder.EncodeUUIDToString(newResource.ID) //создаем короткий юрл, исходя из хешируемой соли
+func (s *Controller) CreateResource(originalUrl string) (model.Resource, error) {
+	id := uuid.New()
+	shortened, err := encoder.EncodeUUIDToString(id)
 	if err != nil {
 		return model.Resource{}, err
 	}
-	newResource.Shortened = shortenedUrl
-	resource, err := s.store.UpdateResource(newResource.ID, newResource) // обновляем ресурс
-	if err != nil {
-		return model.Resource{}, err
+	resource := model.Resource{
+		ID:        id,
+		Address:   originalUrl,
+		Shortened: shortened,
 	}
-	s.store.SaveToLookup(resource)
-	return resource, nil
+	newResource := s.store.CreateResource(resource)
+	return newResource, nil
 }
 
 func (s *Controller) GetResource(shortenedURL string) (model.Resource, error) {
