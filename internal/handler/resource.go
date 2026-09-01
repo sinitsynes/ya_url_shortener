@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"ya_url_shortener/internal/model"
+	"ya_url_shortener/internal/service"
 )
 
 type Controller interface {
@@ -31,6 +33,10 @@ func (h *ResourceHandler) CreateUrl(w http.ResponseWriter, r *http.Request) {
 	}
 	bodyString := string(bodyBytes)
 	resource, err := h.controller.CreateResource(bodyString)
+	if errors.Is(err, service.ErrMaxRetriesExceeded) {
+		http.Error(w, "Превышено количество попыток создания ресурса", http.StatusInternalServerError)
+		return
+	}
 	if err != nil {
 		http.Error(w, "Ошибка создания ресурса", http.StatusInternalServerError)
 		return

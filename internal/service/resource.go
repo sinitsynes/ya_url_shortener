@@ -1,15 +1,19 @@
 package service
 
 import (
+	"errors"
 	"ya_url_shortener/internal/model"
+	"ya_url_shortener/internal/repository"
 	"ya_url_shortener/pkg/encoder"
-
-	"github.com/google/uuid"
 )
 
+const maxCreateAttempts = 5
+
+var ErrMaxRetriesExceeded = errors.New("failed to generate unique shortened url")
+
 type Repository interface {
-	CreateResource(model.Resource) model.Resource
-	GetResourceByID(uuid.UUID) (model.Resource, error)
+	CreateResource(model.Resource) (model.Resource, error)
+	GetResourceByID(int32) (model.Resource, error)
 	GetResourceByURL(string) (model.Resource, error)
 }
 
@@ -22,18 +26,21 @@ func NewResourceController(repository Repository) *Controller {
 }
 
 func (s *Controller) CreateResource(originalUrl string) (model.Resource, error) {
-	id := uuid.New()
-	shortened, err := encoder.EncodeUUIDToString(id)
-	if err != nil {
-		return model.Resource{}, err
+	newResource := model.Resource{Address: originalUrl}
+
+	for saltCounter := range maxCreateAttempts {
+		newResource.Shortened = encoder.EncodeUrl(originalUrl, int32(saltCounter))
+
+		created, err := s.store.CreateResource(newResource)
+		if err == nil {
+			return created, nil
+		}
+		if !errors.Is(err, repository.ErrConflict) {
+			return model.Resource{}, err
+		}
 	}
-	resource := model.Resource{
-		ID:        id,
-		Address:   originalUrl,
-		Shortened: shortened,
-	}
-	newResource := s.store.CreateResource(resource)
-	return newResource, nil
+
+	return model.Resource{}, ErrMaxRetriesExceeded
 }
 
 func (s *Controller) GetResource(shortenedURL string) (model.Resource, error) {

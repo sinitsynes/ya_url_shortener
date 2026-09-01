@@ -1,32 +1,22 @@
 package encoder
 
 import (
-	"errors"
-	"math/big"
-
-	"github.com/google/uuid"
+	"crypto/md5"
+	"encoding/hex"
+	"fmt"
 )
 
-const base62 = `0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ`
-
-var ErrInvalidId = errors.New("invalid id")
-
-func EncodeUUIDToString(id uuid.UUID) (string, error) {
-	if id == uuid.Nil {
-		return "", ErrInvalidId
+// EncodeUrl генерирует короткий URL на основе оригинального URL и счетчика соли.
+// В случае, если количество повторных попыток больше нуля,
+// то строка мутируется, чтобы перегенерировать сокращение.
+func EncodeUrl(originalURL string, saltCounter int32) string {
+	var input string
+	if saltCounter > 0 {
+		input = fmt.Sprintf("%s-%d", originalURL, saltCounter)
+	} else {
+		input = originalURL
 	}
-	var shortened []byte                       // контейнер для закодированной строки
-	identifier := new(big.Int).SetBytes(id[:]) // приводим uuid к bigInteger, это делимое
-	base := big.NewInt(62)                     // делитель
-	mod := new(big.Int)                        // остаток
-	zero := big.NewInt(0)                      // шоткат для нуля
-
-	for identifier.Cmp(zero) > 0 {
-		identifier.DivMod(identifier, base, mod)
-		shortened = append(shortened, base62[mod.Int64()])
-	}
-	for i, j := 0, len(shortened)-1; i < j; i, j = i+1, j-1 {
-		shortened[i], shortened[j] = shortened[j], shortened[i]
-	}
-	return string(shortened), nil
+	hashBytes := md5.Sum([]byte(input))
+	hexString := hex.EncodeToString(hashBytes[:])
+	return hexString[:7]
 }

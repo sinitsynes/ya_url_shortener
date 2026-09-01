@@ -2,31 +2,41 @@ package repository
 
 import (
 	"errors"
+	"sync/atomic"
 	"ya_url_shortener/internal/model"
-
-	"github.com/google/uuid"
 )
 
-type MemoryStorage map[uuid.UUID]model.Resource
-type LookupStorage map[string]uuid.UUID // в отсутствие БД лукап для поиска ресурсов по коротким юрлам
+type MemoryStorage map[int32]model.Resource
+type LookupStorage map[string]int32 // в отсутствие БД лукап для поиска ресурсов по коротким юрлам
 type Store struct {
 	store  MemoryStorage
 	lookup LookupStorage
 }
 
-var ErrNotFound = errors.New("not found")
+var (
+	identifier  atomic.Int32
+	ErrNotFound = errors.New("not found")
+	ErrConflict = errors.New("integrity error")
+)
 
 func NewStore() *Store {
 	return &Store{store: make(MemoryStorage), lookup: make(LookupStorage)}
 }
 
-func (s *Store) CreateResource(r model.Resource) model.Resource {
+func (s *Store) CreateResource(r model.Resource) (model.Resource, error) {
+	_, exists := s.lookup[r.Shortened]
+	if exists {
+		return model.Resource{}, ErrConflict
+	}
+	if r.ID == 0 {
+		r.ID = identifier.Add(1)
+	}
 	s.store[r.ID] = r
 	s.lookup[r.Shortened] = r.ID
-	return r
+	return r, nil
 }
 
-func (s *Store) GetResourceByID(ID uuid.UUID) (model.Resource, error) {
+func (s *Store) GetResourceByID(ID int32) (model.Resource, error) {
 	item, exists := s.store[ID]
 	if !exists {
 		return model.Resource{}, ErrNotFound
