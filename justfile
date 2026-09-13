@@ -10,6 +10,5 @@ ya_test:
     ./shortenertest_v2-darwin-arm64 -test.v -test.run=^TestIteration5$ \
         -binary-path=cmd/shortener/shortener \
         -server-port=7999
-
 test:
-    go test -v ./...
+    go test -cover ./...

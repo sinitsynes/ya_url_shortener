@@ -7,19 +7,21 @@ import (
 )
 
 type Config struct {
-	ServerAddress string `env:"SERVER_ADDRESS,required"`
-	BaseURL       string `env:"BASE_URL,required"`
+	ServerAddress string `env:"SERVER_ADDRESS"`
+	BaseURL       string `env:"BASE_URL"`
 }
 
 func Load() *Config {
-	cfg := Config{}
-	err := env.Parse(&cfg)
-	if err != nil {
-		flag.Parse()
-		httpAddr := flag.String("a", "0.0.0.0:8080", "application address")
-		redirectBaseURL := flag.String("b", "http://localhost:8080", "shortened base url address")
-		cfg.ServerAddress = *httpAddr
-		cfg.BaseURL = *redirectBaseURL
+	cfg := &Config{
+		ServerAddress: "0.0.0.0:8080",
+		BaseURL:       "http://localhost:8080",
 	}
-	return &cfg
+
+	flag.StringVar(&cfg.ServerAddress, "a", cfg.ServerAddress, "application address")
+	flag.StringVar(&cfg.BaseURL, "b", cfg.BaseURL, "shortened base url address")
+	flag.Parse()
+
+	_ = env.Parse(cfg)
+
+	return cfg
 }
