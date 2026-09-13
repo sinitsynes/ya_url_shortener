@@ -8,8 +8,8 @@ import (
 )
 
 type Handler interface {
-	CreateUrl(w http.ResponseWriter, r *http.Request)
-	GetUrl(w http.ResponseWriter, r *http.Request)
+	CreateURL(w http.ResponseWriter, r *http.Request)
+	GetURL(w http.ResponseWriter, r *http.Request)
 }
 
 func NewRouter(handler Handler) *chi.Mux {
@@ -17,8 +17,8 @@ func NewRouter(handler Handler) *chi.Mux {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	r.Post("/", handler.CreateUrl)
-	r.Get("/{url}", handler.GetUrl)
+	r.Post("/", handler.CreateURL)
+	r.Get("/{url}", handler.GetURL)
 
 	return r
 }

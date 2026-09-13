@@ -25,3 +25,4 @@ vendor/
 
 .env
 shortenertest_v2-darwin-arm64
+.tools/

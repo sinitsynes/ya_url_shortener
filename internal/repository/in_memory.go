@@ -3,18 +3,19 @@ package repository
 import (
 	"errors"
 	"sync/atomic"
+
 	"ya_url_shortener/internal/model"
 )
 
 type MemoryStorage map[int32]model.Resource
 type LookupStorage map[string]int32 // в отсутствие БД лукап для поиска ресурсов по коротким юрлам
 type Store struct {
-	store  MemoryStorage
-	lookup LookupStorage
+	identifier atomic.Int32
+	store      MemoryStorage
+	lookup     LookupStorage
 }
 
 var (
-	identifier  atomic.Int32
 	ErrNotFound = errors.New("not found")
 	ErrConflict = errors.New("integrity error")
 )
@@ -29,15 +30,15 @@ func (s *Store) CreateResource(r model.Resource) (model.Resource, error) {
 		return model.Resource{}, ErrConflict
 	}
 	if r.ID == 0 {
-		r.ID = identifier.Add(1)
+		r.ID = s.identifier.Add(1)
 	}
 	s.store[r.ID] = r
 	s.lookup[r.Shortened] = r.ID
 	return r, nil
 }
 
-func (s *Store) GetResourceByID(ID int32) (model.Resource, error) {
-	item, exists := s.store[ID]
+func (s *Store) GetResourceByID(id int32) (model.Resource, error) {
+	item, exists := s.store[id]
 	if !exists {
 		return model.Resource{}, ErrNotFound
 	}

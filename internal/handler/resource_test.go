@@ -1,4 +1,4 @@
-package handler
+package handler_test
 
 import (
 	"bytes"
@@ -7,7 +7,9 @@ import (
 	"net/http/httptest"
 	"regexp"
 	"testing"
+
 	"ya_url_shortener/internal/config"
+	"ya_url_shortener/internal/handler"
 	"ya_url_shortener/internal/repository"
 	"ya_url_shortener/internal/service"
 
@@ -15,14 +17,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type wantCreateUrl struct {
+type wantCreateURL struct {
 	code        int
 	input       []byte
-	baseUrl     string
+	baseURL     string
 	contentType string
 }
 
-type wantGetUrl struct {
+type wantGetURL struct {
 	code     int
 	input    int32
 	response string
@@ -36,37 +38,39 @@ func testAppConfig() *config.Config {
 }
 
 func TestCreateUrl(t *testing.T) {
+	t.Parallel()
 	cfg := testAppConfig()
 	tests := []struct {
 		name string
-		want wantCreateUrl
+		want wantCreateURL
 	}{
 		{
 			name: "positive test #1",
-			want: wantCreateUrl{
+			want: wantCreateURL{
 				code:        201,
 				input:       []byte("https://practicum.yandex.ru/"),
-				baseUrl:     cfg.BaseURL,
+				baseURL:     cfg.BaseURL,
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			repo := repository.NewStore()
 			controller := service.NewResourceController(repo)
-			handler := NewResourceHandler(cfg.BaseURL, controller)
+			h := handler.NewResourceHandler(cfg.BaseURL, controller)
 			request := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(test.want.input))
 			writer := httptest.NewRecorder()
-			handler.CreateUrl(writer, request)
+			h.CreateURL(writer, request)
 			res := writer.Result()
 
 			assert.Equal(t, test.want.code, res.StatusCode)
-			defer request.Body.Close() //nolint:errcheck
+			defer request.Body.Close()
 			resBody, err := io.ReadAll(res.Body)
 			require.NoError(t, err)
 			assert.Regexp(t,
-				`^`+regexp.QuoteMeta(test.want.baseUrl)+`/[0-9A-Za-z]+$`,
+				`^`+regexp.QuoteMeta(test.want.baseURL)+`/[0-9A-Za-z]+$`,
 				string(resBody),
 			)
 			assert.Equal(t, test.want.contentType, res.Header.Get("Content-Type"))
@@ -75,14 +79,15 @@ func TestCreateUrl(t *testing.T) {
 }
 
 func TestGetUrl(t *testing.T) {
+	t.Parallel()
 	cfg := testAppConfig()
 	tests := []struct {
 		name string
-		want wantGetUrl
+		want wantGetURL
 	}{
 		{
 			name: "positive test #2",
-			want: wantGetUrl{
+			want: wantGetURL{
 				code:     307,
 				input:    1,
 				response: "https://practicum.yandex.ru/",
@@ -91,9 +96,10 @@ func TestGetUrl(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 			repo := repository.NewStore()
 			controller := service.NewResourceController(repo)
-			handler := NewResourceHandler(cfg.BaseURL, controller)
+			h := handler.NewResourceHandler(cfg.BaseURL, controller)
 
 			created, createdErr := controller.CreateResource(test.want.response)
 			require.NoError(t, createdErr)
@@ -101,9 +107,9 @@ func TestGetUrl(t *testing.T) {
 			request := httptest.NewRequest(http.MethodGet, "/", nil)
 			request.SetPathValue("url", created.Shortened)
 			writer := httptest.NewRecorder()
-			handler.GetUrl(writer, request)
+			h.GetURL(writer, request)
 			res := writer.Result()
-			defer res.Body.Close() //nolint:errcheck
+			defer res.Body.Close()
 
 			assert.Equal(t, test.want.code, res.StatusCode)
 			assert.Equal(t, test.want.response, res.Header.Get("Location"))
