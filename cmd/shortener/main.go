@@ -17,7 +17,7 @@ func run() error {
 	controller := service.NewResourceController(repo)
 	h := handler.NewResourceHandler(config.BaseURL, controller)
 	router := handler.NewRouter(h)
-	server := httpserver.NewServer(config.HTTPServer.URL, router)
+	server := httpserver.NewServer(config.ServerAddress, router)
 	err := server.ListenAndServe()
 	return err
 }

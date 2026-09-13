@@ -2,12 +2,13 @@ package config
 
 import (
 	"flag"
-	"ya_url_shortener/internal/config/server"
+
+	"github.com/caarlos0/env/v11"
 )
 
 type Config struct {
-	HTTPServer server.HTTPServer
-	BaseURL    string
+	ServerAddress string `env:"SERVER_ADDRESS,required"`
+	BaseURL       string `env:"BASE_URL,required"`
 }
 
 var (
@@ -16,11 +17,14 @@ var (
 )
 
 func Load() *Config {
-	flag.Parse()
-	baseUrl := *redirectBaseURL
-
-	return &Config{
-		HTTPServer: server.HTTPServer{URL: *httpAddr},
-		BaseURL:    baseUrl,
+	cfg := Config{}
+	err := env.Parse(&cfg)
+	if err != nil {
+		flag.Parse()
+		serverAddr := *httpAddr
+		baseUrl := *redirectBaseURL
+		cfg.ServerAddress = serverAddr
+		cfg.BaseURL = baseUrl
 	}
+	return &cfg
 }

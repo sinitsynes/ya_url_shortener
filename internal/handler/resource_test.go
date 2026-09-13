@@ -8,7 +8,6 @@ import (
 	"regexp"
 	"testing"
 	"ya_url_shortener/internal/config"
-	"ya_url_shortener/internal/config/server"
 	"ya_url_shortener/internal/repository"
 	"ya_url_shortener/internal/service"
 
@@ -31,8 +30,8 @@ type wantGetUrl struct {
 
 func testAppConfig() *config.Config {
 	return &config.Config{
-		HTTPServer: server.HTTPServer{URL: "localhost:8000"},
-		BaseURL:    "http://localhost:8080",
+		ServerAddress: "localhost:8000",
+		BaseURL:       "http://localhost:8080",
 	}
 }
 
