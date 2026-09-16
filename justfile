@@ -7,8 +7,7 @@ lint:
 ya_test:
     go vet -vettool="$(pwd)/.tools/statictest" ./... && \
     go build -o cmd/shortener/shortener ./cmd/shortener/ && \
-    ./shortenertest_v2-darwin-arm64 -test.v -test.run=^TestIteration5$ \
-        -binary-path=cmd/shortener/shortener \
-        -server-port=7999
+    ./shortenertest_v2-darwin-arm64 -test.v --test.run=^TestIteration6$ \
+        -source-path=.
 test:
     go test -cover ./...

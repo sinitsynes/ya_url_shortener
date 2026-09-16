@@ -3,6 +3,8 @@ package handler
 import (
 	"net/http"
 
+	ya_middleware "ya_url_shortener/internal/middleware"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -14,7 +16,7 @@ type Handler interface {
 
 func NewRouter(handler Handler) *chi.Mux {
 	r := chi.NewRouter()
-	r.Use(middleware.Logger)
+	r.Use(ya_middleware.Logger)
 	r.Use(middleware.Recoverer)
 
 	r.Post("/", handler.CreateURL)
