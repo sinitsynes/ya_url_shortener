@@ -20,7 +20,7 @@ func run() error {
 
 	repo := repository.NewStore()
 	controller := service.NewResourceController(repo)
-	h := handler.NewResourceHandler(settings.BaseURL, controller)
+	h := handler.NewResourceHandler(settings.BaseURL, controller, logger)
 	router := handler.NewRouter(h)
 	server := httpserver.NewServer(settings.ServerAddress, router)
 	err := server.ListenAndServe()

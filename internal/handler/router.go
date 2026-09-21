@@ -12,6 +12,7 @@ import (
 type Handler interface {
 	CreateURL(w http.ResponseWriter, r *http.Request)
 	GetURL(w http.ResponseWriter, r *http.Request)
+	ShortenURL(w http.ResponseWriter, r *http.Request)
 }
 
 func NewRouter(handler Handler) *chi.Mux {
@@ -21,6 +22,7 @@ func NewRouter(handler Handler) *chi.Mux {
 
 	r.Post("/", handler.CreateURL)
 	r.Get("/{url}", handler.GetURL)
+	r.Post("/api/shorten", handler.ShortenURL)
 
 	return r
 }
