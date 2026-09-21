@@ -6,7 +6,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"strconv"
 
 	"ya_url_shortener/internal/model"
 	"ya_url_shortener/internal/service"
@@ -118,7 +117,6 @@ func (h *ResourceHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Ошибка сериализации ответа", http.StatusInternalServerError)
 	}
 	w.Header().Set(ContentTypeHeader, ContentTypeJSON)
-	w.Header().Set(ContentLengthHeader, strconv.Itoa(len(resp)))
 	w.WriteHeader(http.StatusCreated)
 	w.Write(resp)
 }

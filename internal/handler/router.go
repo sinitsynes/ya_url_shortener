@@ -18,6 +18,8 @@ type Handler interface {
 func NewRouter(handler Handler) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(ya_middleware.Logger)
+	r.Use(ya_middleware.GzipCompressor)
+	r.Use(ya_middleware.GzipDecompressor)
 	r.Use(middleware.Recoverer)
 
 	r.Post("/", handler.CreateURL)

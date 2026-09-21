@@ -33,13 +33,9 @@ func Logger(h http.Handler) http.Handler {
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			startTime := time.Now()
-			responseData := &responseData{
-				status: 0,
-				size:   0,
-			}
 			lw := loggingResponseWriter{
 				ResponseWriter: w,
-				responseData:   responseData,
+				responseData:   &responseData{},
 			}
 			h.ServeHTTP(&lw, r)
 			duration := time.Since(startTime)
@@ -49,8 +45,8 @@ func Logger(h http.Handler) http.Handler {
 				"uri", r.RequestURI,
 				"method", r.Method,
 				"duration", duration,
-				"status", responseData.status,
-				"size", responseData.size)
+				"status", lw.responseData.status,
+				"size", lw.responseData.size)
 		},
 	)
 }

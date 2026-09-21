@@ -23,13 +23,12 @@ func run() error {
 	h := handler.NewResourceHandler(settings.BaseURL, controller, logger)
 	router := handler.NewRouter(h)
 	server := httpserver.NewServer(settings.ServerAddress, router)
-	err := server.ListenAndServe()
-	return err
+	slog.Info("server started", "address", settings.ServerAddress)
+	return server.ListenAndServe()
 }
 
 func main() {
-	err := run()
-	if errors.Is(err, http.ErrServerClosed) {
-		log.Fatal("server closed unexpectedly: %w", err)
+	if err := run(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Fatal(err)
 	}
 }
