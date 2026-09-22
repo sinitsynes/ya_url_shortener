@@ -53,9 +53,9 @@ func (s stubController) GetResource(short string) (model.Resource, error) {
 
 func testAppConfig() *config.Config {
 	return &config.Config{
-		ServerAddress: "localhost:8000",
-		BaseURL:       "http://localhost:8080",
-		Storage:       "storage.txt",
+		ServerAddress:   "localhost:8000",
+		BaseURL:         "http://localhost:8080",
+		FileStoragePath: "storage.txt",
 	}
 }
 

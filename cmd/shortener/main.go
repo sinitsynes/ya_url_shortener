@@ -18,7 +18,7 @@ func run() error {
 	logger := config.NewLogger()
 	slog.SetDefault(logger)
 
-	repo, err := repository.NewStore(settings.Storage)
+	repo, err := repository.NewStore(settings.FileStoragePath)
 	if err != nil {
 		return err
 	}
