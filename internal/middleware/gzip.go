@@ -10,6 +10,7 @@ import (
 
 type gzipResponseWriter struct {
 	http.ResponseWriter
+
 	Writer *gzip.Writer
 	status int
 }

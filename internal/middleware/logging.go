@@ -14,6 +14,7 @@ type (
 
 	loggingResponseWriter struct {
 		http.ResponseWriter
+
 		responseData *responseData
 	}
 )
@@ -29,24 +30,26 @@ func (r *loggingResponseWriter) WriteHeader(statusCode int) {
 	r.responseData.status = statusCode
 }
 
-func Logger(h http.Handler) http.Handler {
-	return http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
+func Logger(logger *slog.Logger) func(http.Handler) http.Handler {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			startTime := time.Now()
 			lw := loggingResponseWriter{
 				ResponseWriter: w,
 				responseData:   &responseData{},
 			}
 			h.ServeHTTP(&lw, r)
-			duration := time.Since(startTime)
 
-			slog.Info(
+			logger.InfoContext(r.Context(),
 				"request",
 				"uri", r.RequestURI,
 				"method", r.Method,
-				"duration", duration,
+				"duration", time.Since(startTime),
 				"status", lw.responseData.status,
 				"size", lw.responseData.size)
-		},
-	)
+		})
+	}
 }

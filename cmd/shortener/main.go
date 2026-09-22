@@ -18,12 +18,15 @@ func run() error {
 	logger := config.NewLogger()
 	slog.SetDefault(logger)
 
-	repo := repository.NewStore()
+	repo, err := repository.NewStore(settings.Storage)
+	if err != nil {
+		return err
+	}
 	controller := service.NewResourceController(repo)
 	h := handler.NewResourceHandler(settings.BaseURL, controller, logger)
-	router := handler.NewRouter(h)
+	router := handler.NewRouter(h, logger)
 	server := httpserver.NewServer(settings.ServerAddress, router)
-	slog.Info("server started", "address", settings.ServerAddress)
+	logger.Info("server started", "address", settings.ServerAddress)
 	return server.ListenAndServe()
 }
 

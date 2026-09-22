@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"net/http"
 
 	ya_middleware "ya_url_shortener/internal/middleware"
@@ -15,9 +16,9 @@ type Handler interface {
 	ShortenURL(w http.ResponseWriter, r *http.Request)
 }
 
-func NewRouter(handler Handler) *chi.Mux {
+func NewRouter(handler Handler, logger *slog.Logger) *chi.Mux {
 	r := chi.NewRouter()
-	r.Use(ya_middleware.Logger)
+	r.Use(ya_middleware.Logger(logger))
 	r.Use(ya_middleware.GzipCompressor)
 	r.Use(ya_middleware.GzipDecompressor)
 	r.Use(middleware.Recoverer)

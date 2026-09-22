@@ -13,8 +13,6 @@ import (
 	"ya_url_shortener/internal/config"
 	"ya_url_shortener/internal/handler"
 	"ya_url_shortener/internal/model"
-	"ya_url_shortener/internal/repository"
-	"ya_url_shortener/internal/service"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,21 +38,39 @@ type (
 		response     model.ResourceResult
 		contentType  string
 	}
+	stubController struct {
+		createFn func(string) (model.Resource, error)
+		getFn    func(string) (model.Resource, error)
+	}
 )
+
+func (s stubController) CreateResource(url string) (model.Resource, error) {
+	return s.createFn(url)
+}
+func (s stubController) GetResource(short string) (model.Resource, error) {
+	return s.getFn(short)
+}
 
 func testAppConfig() *config.Config {
 	return &config.Config{
 		ServerAddress: "localhost:8000",
 		BaseURL:       "http://localhost:8080",
+		Storage:       "storage.txt",
 	}
 }
 
 func setupController(t *testing.T) handler.Controller {
 	t.Helper()
 
-	repo := repository.NewStore()
-	return service.NewResourceController(repo)
-
+	ctrl := stubController{
+		createFn: func(url string) (model.Resource, error) {
+			return model.Resource{ID: 1, Address: url, Shortened: "6bdb5b0"}, nil
+		},
+		getFn: func(short string) (model.Resource, error) {
+			return model.Resource{ID: 1, Address: "https://practicum.yandex.ru/", Shortened: short}, nil
+		},
+	}
+	return ctrl
 }
 
 func setupHandler(t *testing.T, baseURL string, controller handler.Controller) handler.Handler {
@@ -72,7 +88,7 @@ func TestCreateURL(t *testing.T) {
 		want wantCreateURL
 	}{
 		{
-			name: "positive test #1",
+			name: "happy CreateURL #1",
 			want: wantCreateURL{
 				responseCode:    http.StatusCreated,
 				input:           []byte("https://practicum.yandex.ru/"),
@@ -113,7 +129,7 @@ func TestGetURL(t *testing.T) {
 		want wantGetURL
 	}{
 		{
-			name: "positive test #2",
+			name: "happy GetURL #1",
 			want: wantGetURL{
 				responseCode: http.StatusTemporaryRedirect,
 				input:        1,
@@ -151,7 +167,7 @@ func TestShortenURL(t *testing.T) {
 		want wantShortenURL
 	}{
 		{
-			name: "positive test #1",
+			name: "happy ShortenURL #1",
 			want: wantShortenURL{
 				responseCode: http.StatusCreated,
 				input:        model.ResourceInput{URL: "https://practicum.yandex.ru/"},
@@ -167,7 +183,7 @@ func TestShortenURL(t *testing.T) {
 			controller := setupController(t)
 			h := setupHandler(t, cfg.BaseURL, controller)
 			input, err := json.Marshal(test.want.input)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			request := httptest.NewRequest(http.MethodPost, "/api/shorten", bytes.NewReader(input))
 			request.Header.Set(handler.ContentTypeHeader, test.want.inputHeader)
 			writer := httptest.NewRecorder()
@@ -177,7 +193,7 @@ func TestShortenURL(t *testing.T) {
 
 			assert.Equal(t, test.want.responseCode, res.StatusCode)
 			assert.Equal(t, test.want.contentType, res.Header.Get(handler.ContentTypeHeader))
-			assert.NotEqual(t, "", res.Header.Get(handler.ContentLengthHeader))
+			assert.NotEmpty(t, res.Header.Get(handler.ContentLengthHeader))
 		})
 	}
 }
