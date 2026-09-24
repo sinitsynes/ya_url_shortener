@@ -88,6 +88,9 @@ func (s *Store) CreateResource(r model.Resource) (model.Resource, error) {
 }
 
 func (s *Store) GetResourceByID(id int32) (model.Resource, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	item, exists := s.store[id]
 	if !exists {
 		return model.Resource{}, ErrNotFound
@@ -96,6 +99,9 @@ func (s *Store) GetResourceByID(id int32) (model.Resource, error) {
 }
 
 func (s *Store) GetResourceByURL(shortenedURL string) (model.Resource, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	id, exists := s.lookup[shortenedURL]
 	if !exists {
 		return model.Resource{}, ErrNotFound
