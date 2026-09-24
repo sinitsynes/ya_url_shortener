@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"regexp"
 	"testing"
 
 	"ya_url_shortener/internal/config"
@@ -93,7 +92,7 @@ func TestCreateURL(t *testing.T) {
 				responseCode:    http.StatusCreated,
 				input:           []byte("https://practicum.yandex.ru/"),
 				baseURL:         cfg.BaseURL,
-				responsePattern: []byte(`^` + regexp.QuoteMeta(cfg.BaseURL+`/[0-9A-Za-z]+$`)),
+				responsePattern: []byte(cfg.BaseURL + "/6bdb5b0"),
 				contentType:     handler.ContentTypePlainText,
 			},
 		},
@@ -172,7 +171,7 @@ func TestShortenURL(t *testing.T) {
 				responseCode: http.StatusCreated,
 				input:        model.ResourceInput{URL: "https://practicum.yandex.ru/"},
 				inputHeader:  handler.ContentTypeJSON,
-				response:     model.ResourceResult{Result: regexp.QuoteMeta(cfg.BaseURL + `/[0-9A-Za-z]+$`)},
+				response:     model.ResourceResult{Result: cfg.BaseURL + "/6bdb5b0"},
 				contentType:  handler.ContentTypeJSON,
 			},
 		},
