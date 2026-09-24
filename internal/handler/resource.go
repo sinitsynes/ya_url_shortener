@@ -17,7 +17,7 @@ const (
 	ContentTypePlainText string = "text/plain; charset=utf-8"
 	ContentTypeHeader    string = "Content-Type"
 	ContentLengthHeader  string = "Content-Length"
-	MaxRequestSize       int64  = 20 * (1 << 10) // 20KB
+	MaxRequestSize       int64  = 20 * (1 << 10) //nolint: mnd // 20KB
 )
 
 type Controller interface {
