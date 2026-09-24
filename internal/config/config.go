@@ -12,7 +12,7 @@ type Config struct {
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 }
 
-func Load() *Config {
+func Load() (*Config, error) {
 	cfg := &Config{
 		ServerAddress:   "0.0.0.0:8080",
 		BaseURL:         "http://localhost:8080",
@@ -25,7 +25,10 @@ func Load() *Config {
 
 	flag.Parse()
 
-	_ = env.Parse(cfg)
+	err := env.Parse(cfg)
+	if err != nil {
+		return nil, err
+	}
 
-	return cfg
+	return cfg, nil
 }
