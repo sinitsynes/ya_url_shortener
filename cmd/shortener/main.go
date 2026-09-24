@@ -2,9 +2,9 @@ package main
 
 import (
 	"errors"
-	"log"
 	"log/slog"
 	"net/http"
+	"os"
 
 	"ya_url_shortener/internal/config"
 	"ya_url_shortener/internal/handler"
@@ -14,11 +14,15 @@ import (
 )
 
 func run() error {
-	settings := config.Load()
+	settings, err := config.Load()
+	if err != nil {
+		return err
+	}
 	logger := config.NewLogger()
 	slog.SetDefault(logger)
 
 	repo, err := repository.NewStore(settings.FileStoragePath)
+	defer repo.Close()
 	if err != nil {
 		return err
 	}
@@ -32,6 +36,7 @@ func run() error {
 
 func main() {
 	if err := run(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatal(err)
+		slog.Error("fatal error", "error", err)
+		os.Exit(1)
 	}
 }
