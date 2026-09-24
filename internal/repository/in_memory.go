@@ -87,15 +87,18 @@ func (s *Store) CreateResource(r model.Resource) (model.Resource, error) {
 	return r, nil
 }
 
-func (s *Store) GetResourceByID(id int32) (model.Resource, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+func (s *Store) getResource(id int32) (model.Resource, error) {
 	item, exists := s.store[id]
 	if !exists {
 		return model.Resource{}, ErrNotFound
 	}
 	return item, nil
+}
+
+func (s *Store) GetResourceByID(id int32) (model.Resource, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.getResource(id)
 }
 
 func (s *Store) GetResourceByURL(shortenedURL string) (model.Resource, error) {
@@ -106,5 +109,5 @@ func (s *Store) GetResourceByURL(shortenedURL string) (model.Resource, error) {
 	if !exists {
 		return model.Resource{}, ErrNotFound
 	}
-	return s.GetResourceByID(id)
+	return s.getResource(id)
 }
