@@ -11,7 +11,7 @@ import (
 type gzipResponseWriter struct {
 	http.ResponseWriter
 
-	Writer *gzip.Writer
+	buffer *bytes.Buffer
 	status int
 }
 
@@ -20,10 +20,7 @@ func (w *gzipResponseWriter) WriteHeader(statusCode int) {
 }
 
 func (w *gzipResponseWriter) Write(b []byte) (int, error) {
-	if w.status == 0 {
-		w.status = http.StatusOK
-	}
-	return w.Writer.Write(b)
+	return w.buffer.Write(b)
 }
 
 func GzipDecompressor(h http.Handler) http.Handler {
@@ -42,6 +39,19 @@ func GzipDecompressor(h http.Handler) http.Handler {
 		})
 }
 
+func shouldCompress(header http.Header) bool {
+	c := header.Get("Content-Type")
+	contentType := strings.TrimSpace(strings.Split(c, ";")[0])
+	switch contentType {
+	case "application/json":
+		return true
+	case "text/html":
+		return true
+	default:
+		return false
+	}
+}
+
 func GzipCompressor(h http.Handler) http.Handler {
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
@@ -51,20 +61,26 @@ func GzipCompressor(h http.Handler) http.Handler {
 			}
 
 			buffer := &bytes.Buffer{}
-			gz := gzip.NewWriter(buffer)
 			gzw := &gzipResponseWriter{
 				ResponseWriter: w,
-				Writer:         gz,
-				status:         http.StatusOK,
-			}
-
+				buffer:         buffer}
 			h.ServeHTTP(gzw, r)
-			_ = gz.Close()
 
-			w.Header().Set("Content-Encoding", "gzip")
-			w.Header().Set("Content-Length", strconv.Itoa(buffer.Len()))
+			body := gzw.buffer.Bytes()
+			if shouldCompress(w.Header()) {
+				var compressed bytes.Buffer
+				gz := gzip.NewWriter(&compressed)
+				_, _ = gz.Write(body)
+				_ = gz.Close()
+				w.Header().Set("Content-Encoding", "gzip")
+				body = compressed.Bytes()
+			}
+			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+			if gzw.status == 0 {
+				gzw.status = http.StatusOK
+			}
 			w.WriteHeader(gzw.status)
-			_, _ = w.Write(buffer.Bytes())
+			_, _ = w.Write(body)
 		},
 	)
 }

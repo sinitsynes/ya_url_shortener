@@ -22,6 +22,9 @@ type (
 func (r *loggingResponseWriter) Write(b []byte) (int, error) {
 	size, err := r.ResponseWriter.Write(b)
 	r.responseData.size += size
+	if r.responseData.status == 0 {
+		r.responseData.status = http.StatusOK
+	}
 	return size, err
 }
 
