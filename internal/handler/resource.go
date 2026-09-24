@@ -17,6 +17,7 @@ const (
 	ContentTypePlainText string = "text/plain; charset=utf-8"
 	ContentTypeHeader    string = "Content-Type"
 	ContentLengthHeader  string = "Content-Length"
+	MaxRequestSize       int64  = 20 * (1 << 10) // 20KB
 )
 
 type Controller interface {
@@ -42,15 +43,21 @@ func NewResourceHandler(baseURL string, controller Controller, logger *slog.Logg
 }
 
 func (h *ResourceHandler) CreateURL(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, MaxRequestSize)
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
-		h.logger.ErrorContext(r.Context(), "create url error", "error", err)
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			http.Error(w, "Превышен максимальный размер запроса", http.StatusRequestEntityTooLarge)
+			return
+		}
+
 		http.Error(w, "Ошибка чтения запроса", http.StatusBadRequest)
 		return
 	}
 	bodyString := string(bodyBytes)
 	resource, err := h.controller.CreateResource(bodyString)
 	if errors.Is(err, service.ErrMaxRetriesExceeded) {
+		h.logger.ErrorContext(r.Context(), "create url error", "error", err)
 		http.Error(w, "Превышено количество попыток создания ресурса", http.StatusInternalServerError)
 		return
 	}
@@ -73,8 +80,7 @@ func (h *ResourceHandler) GetURL(w http.ResponseWriter, r *http.Request) {
 	}
 	resource, err := h.controller.GetResource(identifier)
 	if err != nil {
-		h.logger.ErrorContext(r.Context(), "get url error", "error", err)
-		http.Error(w, "Ошибка получения ресурса", http.StatusBadRequest)
+		http.Error(w, "Ошибка получения ресурса", http.StatusNotFound)
 		return
 	}
 	w.Header().Add("Location", resource.Address)
@@ -89,20 +95,24 @@ func (h *ResourceHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	input := model.ResourceInput{}
+	r.Body = http.MaxBytesReader(w, r.Body, MaxRequestSize)
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
-		h.logger.ErrorContext(r.Context(), "shorten url error", "error", err)
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			http.Error(w, "Превышен максимальный размер запроса", http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, "Ошибка чтения запроса", http.StatusBadRequest)
 		return
 	}
 	err = json.Unmarshal(bodyBytes, &input)
 	if err != nil {
-		h.logger.ErrorContext(r.Context(), "shorten url error", "error", err)
 		http.Error(w, "Ошибка декодирования запроса", http.StatusBadRequest)
 		return
 	}
 	resource, err := h.controller.CreateResource(input.URL)
 	if errors.Is(err, service.ErrMaxRetriesExceeded) {
+		h.logger.ErrorContext(r.Context(), "shorten url error", "error", err)
 		http.Error(w, "Превышено количество попыток создания ресурса", http.StatusInternalServerError)
 		return
 	}
@@ -116,6 +126,7 @@ func (h *ResourceHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.logger.ErrorContext(r.Context(), "shorten url error", "error", err)
 		http.Error(w, "Ошибка сериализации ответа", http.StatusInternalServerError)
+		return
 	}
 	w.Header().Set(ContentTypeHeader, ContentTypeJSON)
 	w.Header().Set(ContentLengthHeader, strconv.Itoa(len(resp)))
