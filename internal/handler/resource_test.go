@@ -43,16 +43,23 @@ type (
 		getFn    func(string) (model.Resource, error)
 		pingFn   func(context.Context) error
 	}
+	stubPinger struct {
+		err error
+	}
 )
 
-func (s stubController) CreateResource(url string) (model.Resource, error) {
-	return s.createFn(url)
+func (c stubController) CreateResource(url string) (model.Resource, error) {
+	return c.createFn(url)
 }
-func (s stubController) GetResource(short string) (model.Resource, error) {
-	return s.getFn(short)
+func (c stubController) GetResource(short string) (model.Resource, error) {
+	return c.getFn(short)
 }
-func (s stubController) Healthy(ctx context.Context) error {
-	return s.pingFn(ctx)
+func (c stubController) Healthy(ctx context.Context) error {
+	return c.pingFn(ctx)
+}
+
+func (p stubPinger) Ping(ctx context.Context) error {
+	return p.err
 }
 
 func testAppConfig() *config.Config {
@@ -84,7 +91,7 @@ func setupHandler(t *testing.T, baseURL string, controller handler.Controller) h
 	t.Helper()
 
 	logger := slog.Default()
-	return handler.NewResourceHandler(baseURL, controller, logger)
+	return handler.NewResourceHandler(baseURL, controller, logger, stubPinger{})
 }
 
 func TestCreateURL(t *testing.T) {

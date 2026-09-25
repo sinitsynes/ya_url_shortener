@@ -2,7 +2,6 @@ package repository
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"os"
 	"sync"
@@ -104,9 +103,4 @@ func (s *InMemoryStore) GetResourceByURL(shortenedURL string) (model.Resource, e
 		return model.Resource{}, ErrNotFound
 	}
 	return s.getResource(id)
-}
-
-// Ping нужен только для совместимости интерфейса с репозиторием на Postgres.
-func (s *InMemoryStore) Ping(_ context.Context) error {
-	return nil
 }
