@@ -1,0 +1,16 @@
+.git/
+.github/
+.gitignore
+.golangci-lint.yml
+.zed/
+
+README.md
+justfile
+
+#binaries
+cmd/shortener/main
+cmd/shortener/shortener
+
+.env
+#ya_tests
+shortenertest_v2-darwin-arm64
