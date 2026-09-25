@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 
 	"ya_url_shortener/internal/model"
@@ -16,6 +17,7 @@ type Repository interface {
 	CreateResource(model.Resource) (model.Resource, error)
 	GetResourceByID(int32) (model.Resource, error)
 	GetResourceByURL(string) (model.Resource, error)
+	Ping(context.Context) error
 }
 
 type Controller struct {
@@ -50,4 +52,8 @@ func (s *Controller) GetResource(shortenedURL string) (model.Resource, error) {
 		return model.Resource{}, err
 	}
 	return r, nil
+}
+
+func (s *Controller) Healthy(ctx context.Context) error {
+	return s.store.Ping(ctx)
 }

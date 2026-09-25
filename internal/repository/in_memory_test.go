@@ -11,7 +11,7 @@ import (
 	"ya_url_shortener/internal/repository"
 )
 
-func newTestStore(t *testing.T) (*repository.Store, string) {
+func newTestStore(t *testing.T) (*repository.InMemoryStore, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "storage.txt")
 	s, err := repository.NewStore(path)

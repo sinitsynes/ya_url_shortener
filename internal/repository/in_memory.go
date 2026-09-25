@@ -2,8 +2,8 @@ package repository
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
-	"errors"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -13,30 +13,24 @@ import (
 
 type memoryStorage map[int32]model.Resource
 type lookupStorage map[string]int32 // в отсутствие БД лукап для поиска ресурсов по коротким юрлам
-type InMemoryStore struct {
+type InMemoryStorage struct {
 	identifier atomic.Int32
 	store      memoryStorage
 	lookup     lookupStorage
 	mu         sync.Mutex
 }
-type Store struct {
-	InMemoryStore
+type InMemoryStore struct {
+	InMemoryStorage
 	FileStorage
 }
 
-var (
-	ErrNotFound        = errors.New("not found")
-	ErrConflict        = errors.New("integrity error")
-	ErrCantReadStorage = errors.New("can't read storage file")
-)
-
-func NewStore(storageFileName string) (*Store, error) {
+func NewStore(storageFileName string) (*InMemoryStore, error) {
 	file, err := os.OpenFile(storageFileName, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
 	if err != nil {
 		return nil, ErrCantReadStorage
 	}
-	s := &Store{
-		InMemoryStore: InMemoryStore{
+	s := &InMemoryStore{
+		InMemoryStorage: InMemoryStorage{
 			store:  make(memoryStorage),
 			lookup: make(lookupStorage),
 		},
@@ -48,7 +42,7 @@ func NewStore(storageFileName string) (*Store, error) {
 	return s, nil
 }
 
-func (s *Store) backfillStore(f *os.File) error {
+func (s *InMemoryStore) backfillStore(f *os.File) error {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -68,7 +62,7 @@ func (s *Store) backfillStore(f *os.File) error {
 	return nil
 }
 
-func (s *Store) CreateResource(r model.Resource) (model.Resource, error) {
+func (s *InMemoryStore) CreateResource(r model.Resource) (model.Resource, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -87,7 +81,7 @@ func (s *Store) CreateResource(r model.Resource) (model.Resource, error) {
 	return r, nil
 }
 
-func (s *Store) getResource(id int32) (model.Resource, error) {
+func (s *InMemoryStore) getResource(id int32) (model.Resource, error) {
 	item, exists := s.store[id]
 	if !exists {
 		return model.Resource{}, ErrNotFound
@@ -95,13 +89,13 @@ func (s *Store) getResource(id int32) (model.Resource, error) {
 	return item, nil
 }
 
-func (s *Store) GetResourceByID(id int32) (model.Resource, error) {
+func (s *InMemoryStore) GetResourceByID(id int32) (model.Resource, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.getResource(id)
 }
 
-func (s *Store) GetResourceByURL(shortenedURL string) (model.Resource, error) {
+func (s *InMemoryStore) GetResourceByURL(shortenedURL string) (model.Resource, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -110,4 +104,9 @@ func (s *Store) GetResourceByURL(shortenedURL string) (model.Resource, error) {
 		return model.Resource{}, ErrNotFound
 	}
 	return s.getResource(id)
+}
+
+// Ping нужен только для совместимости интерфейса с репозиторием на Postgres.
+func (s *InMemoryStore) Ping(_ context.Context) error {
+	return nil
 }

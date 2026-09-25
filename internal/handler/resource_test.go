@@ -2,6 +2,7 @@ package handler_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -40,6 +41,7 @@ type (
 	stubController struct {
 		createFn func(string) (model.Resource, error)
 		getFn    func(string) (model.Resource, error)
+		pingFn   func(context.Context) error
 	}
 )
 
@@ -48,6 +50,9 @@ func (s stubController) CreateResource(url string) (model.Resource, error) {
 }
 func (s stubController) GetResource(short string) (model.Resource, error) {
 	return s.getFn(short)
+}
+func (s stubController) Healthy(ctx context.Context) error {
+	return s.pingFn(ctx)
 }
 
 func testAppConfig() *config.Config {
@@ -67,6 +72,9 @@ func setupController(t *testing.T) handler.Controller {
 		},
 		getFn: func(short string) (model.Resource, error) {
 			return model.Resource{ID: 1, Address: "https://practicum.yandex.ru/", Shortened: short}, nil
+		},
+		pingFn: func(_ context.Context) error {
+			return nil
 		},
 	}
 	return ctrl
