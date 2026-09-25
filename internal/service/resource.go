@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+
 	"ya_url_shortener/internal/model"
 	"ya_url_shortener/internal/repository"
 	"ya_url_shortener/pkg/encoder"
@@ -25,11 +26,11 @@ func NewResourceController(repository Repository) *Controller {
 	return &Controller{store: repository}
 }
 
-func (s *Controller) CreateResource(originalUrl string) (model.Resource, error) {
-	newResource := model.Resource{Address: originalUrl}
+func (s *Controller) CreateResource(originalURL string) (model.Resource, error) {
+	newResource := model.Resource{Address: originalURL}
 
 	for saltCounter := range maxCreateAttempts {
-		newResource.Shortened = encoder.EncodeUrl(originalUrl, int32(saltCounter))
+		newResource.Shortened = encoder.EncodeURL(originalURL, int32(saltCounter))
 
 		created, err := s.store.CreateResource(newResource)
 		if err == nil {
