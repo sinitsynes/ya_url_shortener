@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -25,17 +27,23 @@ type Controller interface {
 	GetResource(shortenedURL string) (model.Resource, error)
 }
 
+type Pinger interface {
+	Ping(context.Context) error
+}
+
 type ResourceHandler struct {
+	db         Pinger
 	baseURL    string
 	controller Controller
 	logger     *slog.Logger
 }
 
-func NewResourceHandler(baseURL string, controller Controller, logger *slog.Logger) *ResourceHandler {
+func NewResourceHandler(baseURL string, controller Controller, logger *slog.Logger, db Pinger) *ResourceHandler {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	return &ResourceHandler{
+		db:         db,
 		baseURL:    baseURL,
 		controller: controller,
 		logger:     logger,
@@ -132,4 +140,13 @@ func (h *ResourceHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(ContentLengthHeader, strconv.Itoa(len(resp)))
 	w.WriteHeader(http.StatusCreated)
 	w.Write(resp) //nolint: errcheck,gosec
+}
+func (h *ResourceHandler) Healthy(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if err := h.db.Ping(ctx); err != nil {
+		http.Error(w, fmt.Sprintf("database is not available: %s", err.Error()), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }

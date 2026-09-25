@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 
 	"ya_url_shortener/internal/config"
 	"ya_url_shortener/internal/handler"
+	"ya_url_shortener/internal/infra/db"
 	"ya_url_shortener/internal/infra/httpserver"
 	"ya_url_shortener/internal/repository"
 	"ya_url_shortener/internal/service"
@@ -23,9 +25,14 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	defer repo.Close()
+	ctx := context.Background()
+	dbPool, err := db.InitDB(ctx, settings.Database.DSN)
+	if err != nil {
+		return err
+	}
 
 	controller := service.NewResourceController(repo)
-	h := handler.NewResourceHandler(settings.BaseURL, controller, logger)
+	h := handler.NewResourceHandler(settings.BaseURL, controller, logger, dbPool)
 	router := handler.NewRouter(h, logger)
 	server := httpserver.NewServer(settings.ServerAddress, router)
 	logger.Info("server started", "address", settings.ServerAddress)

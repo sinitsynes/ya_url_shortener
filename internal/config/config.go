@@ -3,6 +3,8 @@ package config
 import (
 	"flag"
 
+	"ya_url_shortener/internal/config/db"
+
 	"github.com/caarlos0/env/v11"
 )
 
@@ -10,6 +12,7 @@ type Config struct {
 	ServerAddress   string `env:"SERVER_ADDRESS"`
 	BaseURL         string `env:"BASE_URL"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
+	Database        db.PostgresConfig
 }
 
 func Load() (*Config, error) {
@@ -22,6 +25,7 @@ func Load() (*Config, error) {
 	flag.StringVar(&cfg.ServerAddress, "a", cfg.ServerAddress, "application address")
 	flag.StringVar(&cfg.BaseURL, "b", cfg.BaseURL, "shortened base url address")
 	flag.StringVar(&cfg.FileStoragePath, "f", cfg.FileStoragePath, "storage file path")
+	flag.StringVar(&cfg.Database.DSN, "d", cfg.Database.DSN, "database DSN")
 
 	flag.Parse()
 

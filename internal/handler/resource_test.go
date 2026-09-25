@@ -2,6 +2,7 @@ package handler_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -40,14 +41,25 @@ type (
 	stubController struct {
 		createFn func(string) (model.Resource, error)
 		getFn    func(string) (model.Resource, error)
+		pingFn   func(context.Context) error
+	}
+	stubPinger struct {
+		err error
 	}
 )
 
-func (s stubController) CreateResource(url string) (model.Resource, error) {
-	return s.createFn(url)
+func (c stubController) CreateResource(url string) (model.Resource, error) {
+	return c.createFn(url)
 }
-func (s stubController) GetResource(short string) (model.Resource, error) {
-	return s.getFn(short)
+func (c stubController) GetResource(short string) (model.Resource, error) {
+	return c.getFn(short)
+}
+func (c stubController) Healthy(ctx context.Context) error {
+	return c.pingFn(ctx)
+}
+
+func (p stubPinger) Ping(ctx context.Context) error {
+	return p.err
 }
 
 func testAppConfig() *config.Config {
@@ -68,6 +80,9 @@ func setupController(t *testing.T) handler.Controller {
 		getFn: func(short string) (model.Resource, error) {
 			return model.Resource{ID: 1, Address: "https://practicum.yandex.ru/", Shortened: short}, nil
 		},
+		pingFn: func(_ context.Context) error {
+			return nil
+		},
 	}
 	return ctrl
 }
@@ -76,7 +91,7 @@ func setupHandler(t *testing.T, baseURL string, controller handler.Controller) h
 	t.Helper()
 
 	logger := slog.Default()
-	return handler.NewResourceHandler(baseURL, controller, logger)
+	return handler.NewResourceHandler(baseURL, controller, logger, stubPinger{})
 }
 
 func TestCreateURL(t *testing.T) {
