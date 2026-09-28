@@ -1,4 +1,4 @@
-package repository_test
+package inmemory_test
 
 import (
 	"path/filepath"
@@ -8,13 +8,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"ya_url_shortener/internal/model"
-	"ya_url_shortener/internal/repository"
+	filestorage "ya_url_shortener/internal/repository/file_storage"
+	inmemory "ya_url_shortener/internal/repository/in_memory"
 )
 
-func newTestStore(t *testing.T) (*repository.InMemoryStore, string) {
+func newTestStore(t *testing.T) (*inmemory.Store, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "storage.txt")
-	s, err := repository.NewStore(path)
+	fStorage, err := filestorage.NewFileStorage(path)
+	require.NoError(t, err)
+	s, err := inmemory.NewStore(fStorage)
 	require.NoError(t, err)
 	t.Cleanup(
 		func() {
@@ -45,16 +48,22 @@ func TestCreateResource(t *testing.T) {
 			t.Parallel()
 
 			s, path := newTestStore(t)
-			got, err := s.CreateResource(test.want)
+			got, err := s.CreateResource(t.Context(), test.want)
 			require.NoError(t, err)
 			require.Equal(t, test.want.Address, got.Address)
 			require.Equal(t, test.want.Shortened, got.Shortened)
 			require.NoError(t, s.Close()) // закрываем репозиторий
 
-			// пересоздаем репозиторий: должен сработать бэкфилл из временного файла
-			recreatedStore, err := repository.NewStore(path)
+			// переоткрываем файл и пересоздаем репозиторий: должен сработать бэкфилл
+			// этот блок за пределами видимости хелпера
+			fStorage, err := filestorage.NewFileStorage(path)
 			require.NoError(t, err)
-			got, err = recreatedStore.GetResourceByID(test.want.ID)
+			recreatedStore, err := inmemory.NewStore(fStorage)
+			require.NoError(t, err)
+			// принудительный клинап пересозданного стора
+			t.Cleanup(func() { recreatedStore.Close() })
+
+			got, err = recreatedStore.GetResourceByID(t.Context(), test.want.ID)
 			require.NoError(t, err)
 			assert.Equal(t, test.want, got)
 		})
@@ -81,14 +90,14 @@ func TestGetResourceByID(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			s, _ := newTestStore(t)
-			created, err := s.CreateResource(test.want)
+			created, err := s.CreateResource(t.Context(), test.want)
 			if test.wantErr != nil {
 				require.Error(t, err)
 				assert.Equal(t, test.wantErr, err)
 				return
 			}
 			require.NoError(t, err)
-			got, err := s.GetResourceByID(test.want.ID)
+			got, err := s.GetResourceByID(t.Context(), test.want.ID)
 			require.NoError(t, err)
 			assert.Equal(t, created, got)
 		})
@@ -116,14 +125,14 @@ func TestGetResourceByURL(t *testing.T) {
 			t.Parallel()
 
 			s, _ := newTestStore(t)
-			created, err := s.CreateResource(test.want)
+			created, err := s.CreateResource(t.Context(), test.want)
 			if test.wantErr != nil {
 				require.Error(t, err)
 				assert.Equal(t, test.wantErr, err)
 				return
 			}
 			require.NoError(t, err)
-			got, err := s.GetResourceByURL(created.Shortened)
+			got, err := s.GetResourceByURL(t.Context(), created.Shortened)
 			require.NoError(t, err)
 			assert.Equal(t, created, got)
 		})

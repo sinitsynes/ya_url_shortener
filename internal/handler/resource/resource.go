@@ -1,10 +1,9 @@
-package handler
+package resource
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -23,34 +22,28 @@ const (
 )
 
 type Controller interface {
-	CreateResource(url string) (model.Resource, error)
-	GetResource(shortenedURL string) (model.Resource, error)
+	CreateResource(ctx context.Context, url string) (model.Resource, error)
+	GetResource(ctx context.Context, shortenedURL string) (model.Resource, error)
 }
 
-type Pinger interface {
-	Ping(context.Context) error
-}
-
-type ResourceHandler struct {
-	db         Pinger
+type Handler struct {
 	baseURL    string
 	controller Controller
 	logger     *slog.Logger
 }
 
-func NewResourceHandler(baseURL string, controller Controller, logger *slog.Logger, db Pinger) *ResourceHandler {
+func NewResourceHandler(baseURL string, controller Controller, logger *slog.Logger) *Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &ResourceHandler{
-		db:         db,
+	return &Handler{
 		baseURL:    baseURL,
 		controller: controller,
 		logger:     logger,
 	}
 }
 
-func (h *ResourceHandler) CreateURL(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) CreateURL(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxRequestSize)
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -63,7 +56,7 @@ func (h *ResourceHandler) CreateURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	bodyString := string(bodyBytes)
-	resource, err := h.controller.CreateResource(bodyString)
+	resource, err := h.controller.CreateResource(r.Context(), bodyString)
 	if errors.Is(err, service.ErrMaxRetriesExceeded) {
 		h.logger.ErrorContext(r.Context(), "create url error", "error", err)
 		http.Error(w, "Превышено количество попыток создания ресурса", http.StatusInternalServerError)
@@ -80,13 +73,13 @@ func (h *ResourceHandler) CreateURL(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(resp)) //nolint: errcheck,gosec
 }
 
-func (h *ResourceHandler) GetURL(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetURL(w http.ResponseWriter, r *http.Request) {
 	identifier := r.PathValue("url")
 	if identifier == "" {
 		http.Error(w, "Ошибка чтения идентификатора", http.StatusBadRequest)
 		return
 	}
-	resource, err := h.controller.GetResource(identifier)
+	resource, err := h.controller.GetResource(r.Context(), identifier)
 	if err != nil {
 		http.Error(w, "Ошибка получения ресурса", http.StatusNotFound)
 		return
@@ -95,7 +88,7 @@ func (h *ResourceHandler) GetURL(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusTemporaryRedirect)
 }
 
-func (h *ResourceHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get(ContentTypeHeader)
 	if contentType != ContentTypeJSON {
 		http.Error(w, "Неподдерживаемый тип контента", http.StatusUnsupportedMediaType)
@@ -118,7 +111,7 @@ func (h *ResourceHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Ошибка декодирования запроса", http.StatusBadRequest)
 		return
 	}
-	resource, err := h.controller.CreateResource(input.URL)
+	resource, err := h.controller.CreateResource(r.Context(), input.URL)
 	if errors.Is(err, service.ErrMaxRetriesExceeded) {
 		h.logger.ErrorContext(r.Context(), "shorten url error", "error", err)
 		http.Error(w, "Превышено количество попыток создания ресурса", http.StatusInternalServerError)
@@ -140,13 +133,4 @@ func (h *ResourceHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(ContentLengthHeader, strconv.Itoa(len(resp)))
 	w.WriteHeader(http.StatusCreated)
 	w.Write(resp) //nolint: errcheck,gosec
-}
-func (h *ResourceHandler) Healthy(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	if err := h.db.Ping(ctx); err != nil {
-		http.Error(w, fmt.Sprintf("database is not available: %s", err.Error()), http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
 }

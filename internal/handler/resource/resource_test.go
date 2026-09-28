@@ -1,4 +1,4 @@
-package handler_test
+package resource_test
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"ya_url_shortener/internal/config"
-	"ya_url_shortener/internal/handler"
+	"ya_url_shortener/internal/handler/resource"
 	"ya_url_shortener/internal/model"
 
 	"github.com/stretchr/testify/assert"
@@ -39,27 +39,16 @@ type (
 		contentType  string
 	}
 	stubController struct {
-		createFn func(string) (model.Resource, error)
-		getFn    func(string) (model.Resource, error)
-		pingFn   func(context.Context) error
-	}
-	stubPinger struct {
-		err error
+		createFn func(context.Context, string) (model.Resource, error)
+		getFn    func(context.Context, string) (model.Resource, error)
 	}
 )
 
-func (c stubController) CreateResource(url string) (model.Resource, error) {
-	return c.createFn(url)
+func (c stubController) CreateResource(ctx context.Context, url string) (model.Resource, error) {
+	return c.createFn(ctx, url)
 }
-func (c stubController) GetResource(short string) (model.Resource, error) {
-	return c.getFn(short)
-}
-func (c stubController) Healthy(ctx context.Context) error {
-	return c.pingFn(ctx)
-}
-
-func (p stubPinger) Ping(ctx context.Context) error {
-	return p.err
+func (c stubController) GetResource(ctx context.Context, short string) (model.Resource, error) {
+	return c.getFn(ctx, short)
 }
 
 func testAppConfig() *config.Config {
@@ -70,28 +59,25 @@ func testAppConfig() *config.Config {
 	}
 }
 
-func setupController(t *testing.T) handler.Controller {
+func setupController(t *testing.T) resource.Controller {
 	t.Helper()
 
 	ctrl := stubController{
-		createFn: func(url string) (model.Resource, error) {
+		createFn: func(_ context.Context, url string) (model.Resource, error) {
 			return model.Resource{ID: 1, Address: url, Shortened: "6bdb5b0"}, nil
 		},
-		getFn: func(short string) (model.Resource, error) {
+		getFn: func(_ context.Context, short string) (model.Resource, error) {
 			return model.Resource{ID: 1, Address: "https://practicum.yandex.ru/", Shortened: short}, nil
-		},
-		pingFn: func(_ context.Context) error {
-			return nil
 		},
 	}
 	return ctrl
 }
 
-func setupHandler(t *testing.T, baseURL string, controller handler.Controller) handler.Handler {
+func setupHandler(t *testing.T, baseURL string, controller resource.Controller) resource.ResourceHandler {
 	t.Helper()
 
 	logger := slog.Default()
-	return handler.NewResourceHandler(baseURL, controller, logger, stubPinger{})
+	return resource.NewResourceHandler(baseURL, controller, logger)
 }
 
 func TestCreateURL(t *testing.T) {
@@ -108,7 +94,7 @@ func TestCreateURL(t *testing.T) {
 				input:           []byte("https://practicum.yandex.ru/"),
 				baseURL:         cfg.BaseURL,
 				responsePattern: []byte(cfg.BaseURL + "/6bdb5b0"),
-				contentType:     handler.ContentTypePlainText,
+				contentType:     resource.ContentTypePlainText,
 			},
 		},
 	}
@@ -130,7 +116,7 @@ func TestCreateURL(t *testing.T) {
 				test.want.responsePattern,
 				string(resBody),
 			)
-			assert.Equal(t, test.want.contentType, res.Header.Get(handler.ContentTypeHeader))
+			assert.Equal(t, test.want.contentType, res.Header.Get(resource.ContentTypeHeader))
 		})
 	}
 }
@@ -157,7 +143,7 @@ func TestGetURL(t *testing.T) {
 			controller := setupController(t)
 			h := setupHandler(t, cfg.BaseURL, controller)
 
-			created, createdErr := controller.CreateResource(test.want.response)
+			created, createdErr := controller.CreateResource(t.Context(), test.want.response)
 			require.NoError(t, createdErr)
 
 			request := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -185,9 +171,9 @@ func TestShortenURL(t *testing.T) {
 			want: wantShortenURL{
 				responseCode: http.StatusCreated,
 				input:        model.ResourceInput{URL: "https://practicum.yandex.ru/"},
-				inputHeader:  handler.ContentTypeJSON,
+				inputHeader:  resource.ContentTypeJSON,
 				response:     model.ResourceResult{Result: cfg.BaseURL + "/6bdb5b0"},
-				contentType:  handler.ContentTypeJSON,
+				contentType:  resource.ContentTypeJSON,
 			},
 		},
 	}
@@ -199,15 +185,15 @@ func TestShortenURL(t *testing.T) {
 			input, err := json.Marshal(test.want.input)
 			require.NoError(t, err)
 			request := httptest.NewRequest(http.MethodPost, "/api/shorten", bytes.NewReader(input))
-			request.Header.Set(handler.ContentTypeHeader, test.want.inputHeader)
+			request.Header.Set(resource.ContentTypeHeader, test.want.inputHeader)
 			writer := httptest.NewRecorder()
 			h.ShortenURL(writer, request)
 			res := writer.Result()
 			defer res.Body.Close()
 
 			assert.Equal(t, test.want.responseCode, res.StatusCode)
-			assert.Equal(t, test.want.contentType, res.Header.Get(handler.ContentTypeHeader))
-			assert.NotEmpty(t, res.Header.Get(handler.ContentLengthHeader))
+			assert.Equal(t, test.want.contentType, res.Header.Get(resource.ContentTypeHeader))
+			assert.NotEmpty(t, res.Header.Get(resource.ContentLengthHeader))
 		})
 	}
 }

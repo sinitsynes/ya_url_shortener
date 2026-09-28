@@ -1,3 +1,5 @@
+set dotenv-load
+
 run:
     docker compose up web --build
 
@@ -11,3 +13,15 @@ ya_test:
         -binary-path=cmd/shortener/shortener
 test:
     go test -cover ./...
+
+sqlc-generate:
+    go tool sqlc generate
+
+create_migration name:
+    migrate create -ext sql -dir migrations -seq {{name}}
+
+migrate_up:
+    migrate -database pgx5://postgres:postgres@localhost:5432/shortener -path migrations up
+
+migrate_down:
+    migrate -database pgx5://postgres:postgres@localhost:5432/shortener -path migrations down

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 
 	"ya_url_shortener/internal/model"
@@ -13,9 +14,9 @@ const maxCreateAttempts = 5
 var ErrMaxRetriesExceeded = errors.New("failed to generate unique shortened url")
 
 type Repository interface {
-	CreateResource(model.Resource) (model.Resource, error)
-	GetResourceByID(int32) (model.Resource, error)
-	GetResourceByURL(string) (model.Resource, error)
+	CreateResource(context.Context, model.Resource) (model.Resource, error)
+	GetResourceByID(context.Context, int32) (model.Resource, error)
+	GetResourceByURL(context.Context, string) (model.Resource, error)
 }
 
 type Controller struct {
@@ -26,13 +27,13 @@ func NewResourceController(repository Repository) *Controller {
 	return &Controller{store: repository}
 }
 
-func (s *Controller) CreateResource(originalURL string) (model.Resource, error) {
+func (s *Controller) CreateResource(ctx context.Context, originalURL string) (model.Resource, error) {
 	newResource := model.Resource{Address: originalURL}
 
 	for saltCounter := range maxCreateAttempts {
 		newResource.Shortened = encoder.EncodeURL(originalURL, int32(saltCounter))
 
-		created, err := s.store.CreateResource(newResource)
+		created, err := s.store.CreateResource(ctx, newResource)
 		if err == nil {
 			return created, nil
 		}
@@ -44,8 +45,8 @@ func (s *Controller) CreateResource(originalURL string) (model.Resource, error) 
 	return model.Resource{}, ErrMaxRetriesExceeded
 }
 
-func (s *Controller) GetResource(shortenedURL string) (model.Resource, error) {
-	r, err := s.store.GetResourceByURL(shortenedURL)
+func (s *Controller) GetResource(ctx context.Context, shortenedURL string) (model.Resource, error) {
+	r, err := s.store.GetResourceByURL(ctx, shortenedURL)
 	if err != nil {
 		return model.Resource{}, err
 	}

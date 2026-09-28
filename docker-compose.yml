@@ -29,7 +29,6 @@ services:
     hostname: web
     env_file: .env
     environment:
-      # Override .env: inside Compose, host is the service name, not localhost
       DATABASE_DSN: postgres://postgres:postgres@db:5432/shortener?sslmode=disable
     ports:
       - 8000:8080

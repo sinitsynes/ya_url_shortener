@@ -9,32 +9,80 @@ import (
 
 	"ya_url_shortener/internal/config"
 	"ya_url_shortener/internal/handler"
+	"ya_url_shortener/internal/handler/healthcheck"
+	"ya_url_shortener/internal/handler/resource"
 	"ya_url_shortener/internal/infra/db"
 	"ya_url_shortener/internal/infra/httpserver"
-	"ya_url_shortener/internal/repository"
+	filestorage "ya_url_shortener/internal/repository/file_storage"
+	inmemory "ya_url_shortener/internal/repository/in_memory"
+	"ya_url_shortener/internal/repository/postgres"
 	"ya_url_shortener/internal/service"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// configureRepo собирает хранилку исходя из конфигурации сервиса.
+// Если передано подключение к БД, то она выступает основным хранилищем.
+// В противном случае собирается inMemory хранение в мапе + файловое хранилище для персистентности.
+// Если файл не передан, то остается только inMemory мапа.
+// Функция возвращает репозиторий, соединение с БД (для хелсчека), функцию закрытия репозитория, ошибку.
+func configureRepo(ctx context.Context, settings *config.Config) (service.Repository, *pgxpool.Pool, func(), error) {
+	noop := func() {}
+
+	if settings.Database.DSN != "" {
+		err := db.RunMigrations(settings.Database.DSN)
+		if err != nil {
+			return nil, nil, noop, err
+		}
+		pool, err := db.InitDB(ctx, settings.Database.DSN)
+		if err != nil {
+			return nil, nil, noop, err
+		}
+		repo := postgres.NewStore(pool)
+		cleanup := func() { pool.Close() }
+		return repo, pool, cleanup, nil
+	}
+	if settings.FileStoragePath != "" {
+		fStorage, err := filestorage.NewFileStorage(settings.FileStoragePath)
+		if err != nil {
+			return nil, nil, noop, err
+		}
+		repo, err := inmemory.NewStore(fStorage)
+		if err != nil {
+			if storageErr := fStorage.Close(); storageErr != nil {
+				return nil, nil, noop, storageErr
+			}
+			return nil, nil, noop, err
+		}
+		cleanup := func() { _ = fStorage.Close() }
+		return repo, nil, cleanup, nil
+	}
+	return nil, nil, noop, errors.New("can't configure storage")
+}
 
 func run(logger *slog.Logger) error {
 	settings, err := config.Load()
 	if err != nil {
 		return err
 	}
-	repo, err := repository.NewStore(settings.FileStoragePath)
-	if err != nil {
-		return err
-	}
-	defer repo.Close()
 	ctx := context.Background()
-	dbPool, err := db.InitDB(ctx, settings.Database.DSN)
+	repo, pool, cleanup, err := configureRepo(ctx, settings)
 	if err != nil {
 		return err
 	}
+	defer cleanup()
 
+	// сокращение и хранение URL
 	controller := service.NewResourceController(repo)
-	h := handler.NewResourceHandler(settings.BaseURL, controller, logger, dbPool)
-	router := handler.NewRouter(h, logger)
-	server := httpserver.NewServer(settings.ServerAddress, router)
+	rHandler := resource.NewResourceHandler(settings.BaseURL, controller, logger)
+	// хэлсчек БД
+	hHandler := healthcheck.NewHandler(pool)
+	baseRouter := handler.NewRouter(logger,
+		func(r chi.Router) { resource.RegisterRoutes(r, rHandler) },
+		func(r chi.Router) { healthcheck.RegisterRoutes(r, hHandler) },
+	)
+	server := httpserver.NewServer(settings.ServerAddress, baseRouter)
 	logger.Info("server started", "address", settings.ServerAddress)
 	return server.ListenAndServe()
 }

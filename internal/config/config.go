@@ -19,7 +19,8 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		ServerAddress:   "0.0.0.0:8080",
 		BaseURL:         "http://localhost:8080",
-		FileStoragePath: "storage.txt",
+		FileStoragePath: "",
+		Database:        db.PostgresConfig{DSN: ""},
 	}
 
 	flag.StringVar(&cfg.ServerAddress, "a", cfg.ServerAddress, "application address")
