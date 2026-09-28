@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"ya_url_shortener/internal/config"
+	dbConfig "ya_url_shortener/internal/config/db"
 	"ya_url_shortener/internal/handler"
 	"ya_url_shortener/internal/handler/healthcheck"
 	"ya_url_shortener/internal/handler/resource"
@@ -22,50 +23,67 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// configureRepo собирает хранилку исходя из конфигурации сервиса.
-// Если передано подключение к БД, то она выступает основным хранилищем.
-// В противном случае собирается inMemory хранение в мапе + файловое хранилище для персистентности.
-// Если файл не передан, то остается только inMemory мапа.
-// Функция возвращает репозиторий, соединение с БД (для хелсчека), функцию закрытия репозитория, ошибку.
-func configureRepo(ctx context.Context, settings *config.Config) (service.Repository, *pgxpool.Pool, func(), error) {
-	noop := func() {}
+// группирующая структура конфигурация хранилки
+type repo struct {
+	repo    service.Repository
+	pool    *pgxpool.Pool
+	cleanup func()
+}
 
-	// БД
-	if settings.Database.DSN != "" {
-		err := db.RunMigrations(settings.Database.DSN)
-		if err != nil {
-			return nil, nil, noop, err
-		}
-		pool, err := db.InitDB(ctx, settings.Database)
-		if err != nil {
-			return nil, nil, noop, err
-		}
-		repo := postgres.NewStore(pool)
-		cleanup := func() { pool.Close() }
-		return repo, pool, cleanup, nil
-	}
-	// inmemory + file storage
-	if settings.FileStoragePath != "" {
-		fStorage, err := filestorage.NewFileStorage(settings.FileStoragePath)
-		if err != nil {
-			return nil, nil, noop, err
-		}
-		repo, err := inmemory.NewStore(fStorage)
-		if err != nil {
-			if storageErr := fStorage.Close(); storageErr != nil {
-				return nil, nil, noop, storageErr
-			}
-			return nil, nil, noop, err
-		}
-		cleanup := func() { _ = fStorage.Close() }
-		return repo, nil, cleanup, nil
-	}
-	// только inmemory
-	repo, err := inmemory.NewStore(nil)
+func newPostgresRepo(ctx context.Context, pg *dbConfig.PostgresConfig) (repo, error) {
+	err := db.RunMigrations(pg.DSN)
 	if err != nil {
-		return nil, nil, noop, err
+		return repo{}, err
 	}
-	return repo, nil, noop, nil
+	pool, err := db.InitDB(ctx, pg)
+	if err != nil {
+		return repo{}, err
+	}
+	r := postgres.NewStore(pool)
+	return repo{
+		repo:    r,
+		pool:    pool,
+		cleanup: pool.Close,
+	}, nil
+}
+
+func newFileRepo(filePath string) (repo, error) {
+	fs, err := filestorage.NewFileStorage(filePath)
+	if err != nil {
+		return repo{}, err
+	}
+	r, err := inmemory.NewStore(fs)
+	if err != nil {
+		_ = fs.Close()
+		return repo{}, err
+	}
+	return repo{
+		repo:    r,
+		cleanup: func() { _ = fs.Close() },
+	}, nil
+
+}
+
+func newInMemoryRepo() (repo, error) {
+	r, err := inmemory.NewStore(nil)
+	if err != nil {
+		return repo{}, err
+	}
+	return repo{
+		repo:    r,
+		cleanup: func() {},
+	}, nil
+}
+
+func configureRepo(ctx context.Context, settings *config.Config) (repo, error) {
+	switch {
+	case settings.Database.DSN != "":
+		return newPostgresRepo(ctx, settings.Database)
+	case settings.FileStoragePath != "":
+		return newFileRepo(settings.FileStoragePath)
+	default:
+		return newInMemoryRepo()
+	}
 }
 
 func run(logger *slog.Logger) error {
@@ -74,17 +92,17 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	ctx := context.Background()
-	repo, pool, cleanup, err := configureRepo(ctx, settings)
+	repo, err := configureRepo(ctx, settings)
 	if err != nil {
 		return err
 	}
-	defer cleanup()
+	defer repo.cleanup()
 
 	// сокращение и хранение URL
-	controller := service.NewResourceController(repo)
+	controller := service.NewResourceController(repo.repo)
 	rHandler := resource.NewResourceHandler(settings.BaseURL, controller, logger)
 	// хэлсчек БД
-	hHandler := healthcheck.NewHandler(pool)
+	hHandler := healthcheck.NewHandler(repo.pool)
 	baseRouter := handler.NewRouter(logger,
 		func(r chi.Router) { healthcheck.RegisterRoutes(r, hHandler) },
 		func(r chi.Router) { resource.RegisterRoutes(r, rHandler) },
