@@ -30,12 +30,13 @@ import (
 func configureRepo(ctx context.Context, settings *config.Config) (service.Repository, *pgxpool.Pool, func(), error) {
 	noop := func() {}
 
+	// БД
 	if settings.Database.DSN != "" {
 		err := db.RunMigrations(settings.Database.DSN)
 		if err != nil {
 			return nil, nil, noop, err
 		}
-		pool, err := db.InitDB(ctx, settings.Database.DSN)
+		pool, err := db.InitDB(ctx, settings.Database)
 		if err != nil {
 			return nil, nil, noop, err
 		}
@@ -43,6 +44,7 @@ func configureRepo(ctx context.Context, settings *config.Config) (service.Reposi
 		cleanup := func() { pool.Close() }
 		return repo, pool, cleanup, nil
 	}
+	// inmemory + file storage
 	if settings.FileStoragePath != "" {
 		fStorage, err := filestorage.NewFileStorage(settings.FileStoragePath)
 		if err != nil {
@@ -58,7 +60,12 @@ func configureRepo(ctx context.Context, settings *config.Config) (service.Reposi
 		cleanup := func() { _ = fStorage.Close() }
 		return repo, nil, cleanup, nil
 	}
-	return nil, nil, noop, errors.New("can't configure storage")
+	// только inmemory
+	repo, err := inmemory.NewStore(nil)
+	if err != nil {
+		return nil, nil, noop, err
+	}
+	return repo, nil, noop, nil
 }
 
 func run(logger *slog.Logger) error {
@@ -79,8 +86,8 @@ func run(logger *slog.Logger) error {
 	// хэлсчек БД
 	hHandler := healthcheck.NewHandler(pool)
 	baseRouter := handler.NewRouter(logger,
-		func(r chi.Router) { resource.RegisterRoutes(r, rHandler) },
 		func(r chi.Router) { healthcheck.RegisterRoutes(r, hHandler) },
+		func(r chi.Router) { resource.RegisterRoutes(r, rHandler) },
 	)
 	server := httpserver.NewServer(settings.ServerAddress, baseRouter)
 	logger.Info("server started", "address", settings.ServerAddress)

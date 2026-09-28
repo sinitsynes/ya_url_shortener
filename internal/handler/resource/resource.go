@@ -8,17 +8,19 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"ya_url_shortener/internal/model"
 	"ya_url_shortener/internal/service"
 )
 
 const (
-	ContentTypeJSON      string = "application/json"
-	ContentTypePlainText string = "text/plain; charset=utf-8"
-	ContentTypeHeader    string = "Content-Type"
-	ContentLengthHeader  string = "Content-Length"
-	MaxRequestSize       int64  = 20 * (1 << 10) //nolint: mnd // 20KB
+	ContentTypeJSON      string        = "application/json"
+	ContentTypePlainText string        = "text/plain; charset=utf-8"
+	ContentTypeHeader    string        = "Content-Type"
+	ContentLengthHeader  string        = "Content-Length"
+	MaxRequestSize       int64         = 20 * (1 << 10) //nolint: mnd // 20KB
+	RequestTimeout       time.Duration = 3 * time.Second
 )
 
 type Controller interface {
@@ -27,9 +29,10 @@ type Controller interface {
 }
 
 type Handler struct {
-	baseURL    string
-	controller Controller
-	logger     *slog.Logger
+	baseURL        string
+	controller     Controller
+	logger         *slog.Logger
+	requestTimeout time.Duration
 }
 
 func NewResourceHandler(baseURL string, controller Controller, logger *slog.Logger) *Handler {
@@ -37,9 +40,10 @@ func NewResourceHandler(baseURL string, controller Controller, logger *slog.Logg
 		logger = slog.Default()
 	}
 	return &Handler{
-		baseURL:    baseURL,
-		controller: controller,
-		logger:     logger,
+		baseURL:        baseURL,
+		controller:     controller,
+		logger:         logger,
+		requestTimeout: RequestTimeout,
 	}
 }
 
@@ -56,14 +60,16 @@ func (h *Handler) CreateURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	bodyString := string(bodyBytes)
-	resource, err := h.controller.CreateResource(r.Context(), bodyString)
+	ctx, cancel := context.WithTimeout(r.Context(), h.requestTimeout)
+	defer cancel()
+	resource, err := h.controller.CreateResource(ctx, bodyString)
 	if errors.Is(err, service.ErrMaxRetriesExceeded) {
-		h.logger.ErrorContext(r.Context(), "create url error", "error", err)
+		h.logger.ErrorContext(ctx, "create url error", "error", err)
 		http.Error(w, "Превышено количество попыток создания ресурса", http.StatusInternalServerError)
 		return
 	}
 	if err != nil {
-		h.logger.ErrorContext(r.Context(), "create url error", "error", err)
+		h.logger.ErrorContext(ctx, "create url error", "error", err)
 		http.Error(w, "Ошибка создания ресурса", http.StatusInternalServerError)
 		return
 	}
@@ -79,7 +85,9 @@ func (h *Handler) GetURL(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Ошибка чтения идентификатора", http.StatusBadRequest)
 		return
 	}
-	resource, err := h.controller.GetResource(r.Context(), identifier)
+	ctx, cancel := context.WithTimeout(r.Context(), h.requestTimeout)
+	defer cancel()
+	resource, err := h.controller.GetResource(ctx, identifier)
 	if err != nil {
 		http.Error(w, "Ошибка получения ресурса", http.StatusNotFound)
 		return
@@ -111,21 +119,23 @@ func (h *Handler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Ошибка декодирования запроса", http.StatusBadRequest)
 		return
 	}
-	resource, err := h.controller.CreateResource(r.Context(), input.URL)
+	ctx, cancel := context.WithTimeout(r.Context(), h.requestTimeout)
+	defer cancel()
+	resource, err := h.controller.CreateResource(ctx, input.URL)
 	if errors.Is(err, service.ErrMaxRetriesExceeded) {
 		h.logger.ErrorContext(r.Context(), "shorten url error", "error", err)
 		http.Error(w, "Превышено количество попыток создания ресурса", http.StatusInternalServerError)
 		return
 	}
 	if err != nil {
-		h.logger.ErrorContext(r.Context(), "shorten url error", "error", err)
+		h.logger.ErrorContext(ctx, "shorten url error", "error", err)
 		http.Error(w, "Ошибка создания ресурса", http.StatusInternalServerError)
 		return
 	}
 	result := model.ResourceResult{Result: h.baseURL + "/" + resource.Shortened}
 	resp, err := json.Marshal(result)
 	if err != nil {
-		h.logger.ErrorContext(r.Context(), "shorten url error", "error", err)
+		h.logger.ErrorContext(ctx, "shorten url error", "error", err)
 		http.Error(w, "Ошибка сериализации ответа", http.StatusInternalServerError)
 		return
 	}

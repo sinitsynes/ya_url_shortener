@@ -12,8 +12,8 @@ import (
 func NewRouter(logger *slog.Logger, register ...func(chi.Router)) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(ya_middleware.Logger(logger))
-	r.Use(ya_middleware.GzipCompressor)
 	r.Use(ya_middleware.GzipDecompressor)
+	r.Use(ya_middleware.GzipCompressor)
 	r.Use(middleware.Recoverer)
 
 	for _, fn := range register {

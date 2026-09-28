@@ -12,7 +12,7 @@ type Config struct {
 	ServerAddress   string `env:"SERVER_ADDRESS"`
 	BaseURL         string `env:"BASE_URL"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
-	Database        db.PostgresConfig
+	Database        *db.PostgresConfig
 }
 
 func Load() (*Config, error) {
@@ -20,7 +20,7 @@ func Load() (*Config, error) {
 		ServerAddress:   "0.0.0.0:8080",
 		BaseURL:         "http://localhost:8080",
 		FileStoragePath: "",
-		Database:        db.PostgresConfig{DSN: ""},
+		Database:        &db.PostgresConfig{DSN: ""},
 	}
 
 	flag.StringVar(&cfg.ServerAddress, "a", cfg.ServerAddress, "application address")

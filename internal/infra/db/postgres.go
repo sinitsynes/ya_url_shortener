@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/url"
-	"time"
+
+	"ya_url_shortener/internal/config/db"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5" //nolint:blank-imports
@@ -12,12 +13,16 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const ConnectionTimeout time.Duration = 1 * time.Second
+func InitDB(ctx context.Context, dbConfig *db.PostgresConfig) (*pgxpool.Pool, error) {
+	config, err := pgxpool.ParseConfig(dbConfig.DSN)
+	if err != nil {
+		return nil, err
+	}
+	config.ConnConfig.ConnectTimeout = dbConfig.ConnectionTimeout
 
-func InitDB(ctx context.Context, connString string) (*pgxpool.Pool, error) {
-	ctx, cancel := context.WithTimeout(ctx, ConnectionTimeout)
+	ctx, cancel := context.WithTimeout(ctx, dbConfig.ConnectionTimeout)
 	defer cancel()
-	return pgxpool.New(ctx, connString)
+	return pgxpool.NewWithConfig(ctx, config)
 }
 
 func RunMigrations(connString string) error {
