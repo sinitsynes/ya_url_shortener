@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"ya_url_shortener/internal/model"
+	"ya_url_shortener/internal/repository"
 	"ya_url_shortener/internal/service"
 )
 
@@ -65,6 +66,10 @@ func (h *Handler) CreateURL(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, service.ErrMaxRetriesExceeded) {
 		h.logger.ErrorContext(ctx, "create url error", "error", err)
 		http.Error(w, "Превышено количество попыток создания ресурса", http.StatusInternalServerError)
+		return
+	}
+	if errors.Is(err, repository.ErrConflict) {
+		http.Error(w, "Запись с URL уже существует", http.StatusConflict)
 		return
 	}
 	if err != nil {
@@ -124,6 +129,10 @@ func (h *Handler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, service.ErrMaxRetriesExceeded) {
 		h.logger.ErrorContext(r.Context(), "shorten url error", "error", err)
 		http.Error(w, "Превышено количество попыток создания ресурса", http.StatusInternalServerError)
+		return
+	}
+	if errors.Is(err, repository.ErrConflict) {
+		http.Error(w, "Запись с этим URL уже существует", http.StatusConflict)
 		return
 	}
 	if err != nil {
