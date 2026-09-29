@@ -21,11 +21,14 @@ type Repository interface {
 }
 
 type Controller struct {
-	store Repository
+	baseURL string
+	store   Repository
 }
 
-func NewResourceController(repository Repository) *Controller {
-	return &Controller{store: repository}
+func NewResourceController(baseURL string, repository Repository) *Controller {
+	return &Controller{
+		baseURL: baseURL,
+		store:   repository}
 }
 
 // withConflictRetry повторяет попытку создания записей, пока количество попыток не перевалит за константу.
@@ -46,10 +49,15 @@ func withConflictRetry[T any](attempt func(salt int32) (T, error)) (T, error) {
 
 func (s *Controller) CreateResource(ctx context.Context, originalURL string) (model.Resource, error) {
 	return withConflictRetry(func(salt int32) (model.Resource, error) {
-		return s.store.CreateResource(ctx, model.Resource{
+		created, err := s.store.CreateResource(ctx, model.Resource{
 			OriginalURL: originalURL,
 			ShortURL:    encoder.EncodeURL(originalURL, salt),
 		})
+		if err != nil {
+			return model.Resource{}, err
+		}
+		created.ShortURL = s.baseURL + "/" + created.ShortURL
+		return created, nil
 	})
 }
 
@@ -58,6 +66,7 @@ func (s *Controller) GetResource(ctx context.Context, shortenedURL string) (mode
 	if err != nil {
 		return model.Resource{}, err
 	}
+	r.ShortURL = s.baseURL + "/" + r.ShortURL
 	return r, nil
 }
 
@@ -66,14 +75,21 @@ func (s *Controller) CreateBatch(
 	batch []model.ResourceBatchInput,
 ) ([]model.ResourceBatchOutput, error) {
 	return withConflictRetry(func(salt int32) ([]model.ResourceBatchOutput, error) {
-		resources := make([]model.Resource, 0, len(batch))
-		for _, item := range batch {
-			resources = append(resources, model.Resource{
+		resources := make([]model.Resource, len(batch))
+		for i, item := range batch {
+			resources[i] = model.Resource{
 				OriginalURL:   item.OriginalURL,
 				ShortURL:      encoder.EncodeURL(item.OriginalURL, salt),
 				CorrelationID: item.CorrelationID,
-			})
+			}
 		}
-		return s.store.CreateBatch(ctx, resources)
+		created, err := s.store.CreateBatch(ctx, resources)
+		if err != nil {
+			return nil, err
+		}
+		for i := range created {
+			created[i].ShortURL = s.baseURL + "/" + created[i].ShortURL
+		}
+		return created, nil
 	})
 }

@@ -98,8 +98,8 @@ func run(logger *slog.Logger) error {
 	defer repository.cleanup()
 
 	// сокращение и хранение URL
-	controller := service.NewResourceController(repository.repo)
-	rHandler := resource.NewResourceHandler(settings.BaseURL, controller, logger)
+	controller := service.NewResourceController(settings.BaseURL, repository.repo)
+	rHandler := resource.NewResourceHandler(controller, logger)
 	// хэлсчек БД
 	hHandler := healthcheck.NewHandler(repository.pool)
 	baseRouter := handler.NewRouter(logger,

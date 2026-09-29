@@ -30,18 +30,16 @@ type Controller interface {
 }
 
 type Handler struct {
-	baseURL        string
 	controller     Controller
 	logger         *slog.Logger
 	requestTimeout time.Duration
 }
 
-func NewResourceHandler(baseURL string, controller Controller, logger *slog.Logger) *Handler {
+func NewResourceHandler(controller Controller, logger *slog.Logger) *Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	return &Handler{
-		baseURL:        baseURL,
 		controller:     controller,
 		logger:         logger,
 		requestTimeout: RequestTimeout,
@@ -74,7 +72,7 @@ func (h *Handler) CreateURL(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Ошибка создания ресурса", http.StatusInternalServerError)
 		return
 	}
-	resp := h.baseURL + "/" + resource.ShortURL
+	resp := resource.ShortURL
 	w.Header().Set(ContentTypeHeader, ContentTypePlainText)
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(resp)) //nolint: errcheck,gosec
@@ -133,7 +131,7 @@ func (h *Handler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Ошибка создания ресурса", http.StatusInternalServerError)
 		return
 	}
-	result := model.ResourceResult{Result: h.baseURL + "/" + resource.ShortURL}
+	result := model.ResourceResult{Result: resource.ShortURL}
 	resp, err := json.Marshal(result)
 	if err != nil {
 		h.logger.ErrorContext(ctx, "shorten url error", "error", err)
@@ -170,12 +168,12 @@ func (h *Handler) CreateBatch(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), h.requestTimeout)
 	defer cancel()
-	resp, err := h.controller.CreateBatch(ctx, input)
+	created, err := h.controller.CreateBatch(ctx, input)
 	if err != nil {
 		http.Error(w, "Ошибка создания ресурсов", http.StatusInternalServerError)
 		return
 	}
-	res, err := json.Marshal(resp)
+	res, err := json.Marshal(created)
 	if err != nil {
 		http.Error(w, "Ошибка сериализации ответа", http.StatusInternalServerError)
 		return

@@ -77,10 +77,11 @@ func testAppConfig() *config.Config {
 
 func setupController(t *testing.T) resource.Controller {
 	t.Helper()
+	cfg := testAppConfig()
 
 	ctrl := stubController{
 		createFn: func(_ context.Context, url string) (model.Resource, error) {
-			return model.Resource{ID: 1, OriginalURL: url, ShortURL: "6bdb5b0"}, nil
+			return model.Resource{ID: 1, OriginalURL: url, ShortURL: cfg.BaseURL + "/6bdb5b0"}, nil
 		},
 		getFn: func(_ context.Context, short string) (model.Resource, error) {
 			return model.Resource{ID: 1, OriginalURL: "https://practicum.yandex.ru/", ShortURL: short}, nil
@@ -90,7 +91,7 @@ func setupController(t *testing.T) resource.Controller {
 			for _, item := range input {
 				out = append(out, model.ResourceBatchOutput{
 					CorrelationID: item.CorrelationID,
-					ShortURL:      "6bdb5b0",
+					ShortURL:      cfg.BaseURL + "/6bdb5b0",
 				})
 			}
 			return out, nil
@@ -99,11 +100,11 @@ func setupController(t *testing.T) resource.Controller {
 	return ctrl
 }
 
-func setupHandler(t *testing.T, baseURL string, controller resource.Controller) resource.ResourceHandler {
+func setupHandler(t *testing.T, controller resource.Controller) resource.ResourceHandler {
 	t.Helper()
 
 	logger := slog.Default()
-	return resource.NewResourceHandler(baseURL, controller, logger)
+	return resource.NewResourceHandler(controller, logger)
 }
 
 func TestCreateURL(t *testing.T) {
@@ -128,7 +129,7 @@ func TestCreateURL(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			controller := setupController(t)
-			h := setupHandler(t, cfg.BaseURL, controller)
+			h := setupHandler(t, controller)
 			request := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(test.want.input))
 			writer := httptest.NewRecorder()
 			h.CreateURL(writer, request)
@@ -149,7 +150,6 @@ func TestCreateURL(t *testing.T) {
 
 func TestGetURL(t *testing.T) {
 	t.Parallel()
-	cfg := testAppConfig()
 	tests := []struct {
 		name string
 		want wantGetURL
@@ -167,7 +167,7 @@ func TestGetURL(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			controller := setupController(t)
-			h := setupHandler(t, cfg.BaseURL, controller)
+			h := setupHandler(t, controller)
 
 			created, createdErr := controller.CreateResource(t.Context(), test.want.response)
 			require.NoError(t, createdErr)
@@ -207,7 +207,7 @@ func TestShortenURL(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			controller := setupController(t)
-			h := setupHandler(t, cfg.BaseURL, controller)
+			h := setupHandler(t, controller)
 			input, err := json.Marshal(test.want.input)
 			require.NoError(t, err)
 			request := httptest.NewRequest(http.MethodPost, "/api/shorten", bytes.NewReader(input))
@@ -247,8 +247,14 @@ func TestCreateBatch(t *testing.T) {
 				},
 				inputHeader: resource.ContentTypeJSON,
 				response: []model.ResourceBatchOutput{
-					{CorrelationID: uuid.MustParse("0cc3dd37-e05f-49ab-a716-e783556a7980"), ShortURL: "6bdb5b0"},
-					{CorrelationID: uuid.MustParse("241af749-05ea-42d9-8ada-3786c6d6018b"), ShortURL: "6bdb5b0"},
+					{
+						CorrelationID: uuid.MustParse("0cc3dd37-e05f-49ab-a716-e783556a7980"),
+						ShortURL:      cfg.BaseURL + "/6bdb5b0",
+					},
+					{
+						CorrelationID: uuid.MustParse("241af749-05ea-42d9-8ada-3786c6d6018b"),
+						ShortURL:      cfg.BaseURL + "/6bdb5b0",
+					},
 				},
 				contentType: resource.ContentTypeJSON,
 			},
@@ -258,7 +264,7 @@ func TestCreateBatch(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			controller := setupController(t)
-			h := setupHandler(t, cfg.BaseURL, controller)
+			h := setupHandler(t, controller)
 			input, err := json.Marshal(test.want.input)
 			require.NoError(t, err)
 			request := httptest.NewRequest(http.MethodPost, "/api/shorten/batch", bytes.NewReader(input))
