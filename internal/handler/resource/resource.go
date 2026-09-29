@@ -106,6 +106,7 @@ func (h *Handler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Неподдерживаемый тип контента", http.StatusUnsupportedMediaType)
 		return
 	}
+	w.Header().Set(ContentTypeHeader, ContentTypeJSON)
 
 	input := model.ResourceInput{}
 	r.Body = http.MaxBytesReader(w, r.Body, MaxRequestSize)
@@ -126,19 +127,20 @@ func (h *Handler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), h.requestTimeout)
 	defer cancel()
 	resource, err := h.controller.CreateResource(ctx, input.URL)
-	if errors.Is(err, service.ErrMaxRetriesExceeded) {
-		h.logger.ErrorContext(r.Context(), "shorten url error", "error", err)
-		http.Error(w, "Превышено количество попыток создания ресурса", http.StatusInternalServerError)
-		return
-	}
-	if errors.Is(err, repository.ErrConflict) {
-		http.Error(w, "Запись с этим URL уже существует", http.StatusConflict)
-		return
-	}
 	if err != nil {
-		h.logger.ErrorContext(ctx, "shorten url error", "error", err)
-		http.Error(w, "Ошибка создания ресурса", http.StatusInternalServerError)
-		return
+		switch {
+		case errors.Is(err, service.ErrMaxRetriesExceeded):
+			h.logger.ErrorContext(r.Context(), "shorten url error", "error", err)
+			http.Error(w, "Превышено количество попыток создания ресурса", http.StatusInternalServerError)
+			return
+		case errors.Is(err, repository.ErrConflict):
+			http.Error(w, "Запись с этим URL уже существует", http.StatusConflict)
+			return
+		default:
+			h.logger.ErrorContext(ctx, "shorten url error", "error", err)
+			http.Error(w, "Ошибка создания ресурса", http.StatusInternalServerError)
+			return
+		}
 	}
 	result := model.ResourceResult{Result: resource.ShortURL}
 	resp, err := json.Marshal(result)
@@ -147,7 +149,6 @@ func (h *Handler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Ошибка сериализации ответа", http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set(ContentTypeHeader, ContentTypeJSON)
 	w.Header().Set(ContentLengthHeader, strconv.Itoa(len(resp)))
 	w.WriteHeader(http.StatusCreated)
 	w.Write(resp) //nolint: errcheck,gosec
