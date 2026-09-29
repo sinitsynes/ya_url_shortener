@@ -9,7 +9,7 @@ import (
 	"ya_url_shortener/pkg/encoder"
 )
 
-const maxCreateAttempts = 5
+const maxCreateAttempts int32 = 5
 
 var ErrMaxRetriesExceeded = errors.New("failed to generate unique shortened url")
 
@@ -17,6 +17,7 @@ type Repository interface {
 	CreateResource(context.Context, model.Resource) (model.Resource, error)
 	GetResourceByID(context.Context, int32) (model.Resource, error)
 	GetResourceByURL(context.Context, string) (model.Resource, error)
+	CreateBatch(context.Context, []model.Resource) ([]model.ResourceBatchOutput, error)
 }
 
 type Controller struct {
@@ -27,22 +28,29 @@ func NewResourceController(repository Repository) *Controller {
 	return &Controller{store: repository}
 }
 
-func (s *Controller) CreateResource(ctx context.Context, originalURL string) (model.Resource, error) {
-	newResource := model.Resource{Address: originalURL}
-
-	for saltCounter := range maxCreateAttempts {
-		newResource.Shortened = encoder.EncodeURL(originalURL, int32(saltCounter))
-
-		created, err := s.store.CreateResource(ctx, newResource)
+// withConflictRetry повторяет попытку создания записей, пока количество попыток не перевалит за константу.
+// При условии, что срабатывать будет только ошибка ErrConflict.
+func withConflictRetry[T any](attempt func(salt int32) (T, error)) (T, error) {
+	var zero T
+	for salt := range maxCreateAttempts {
+		result, err := attempt(salt)
 		if err == nil {
-			return created, nil
+			return result, nil
 		}
 		if !errors.Is(err, repository.ErrConflict) {
-			return model.Resource{}, err
+			return zero, err
 		}
 	}
+	return zero, ErrMaxRetriesExceeded
+}
 
-	return model.Resource{}, ErrMaxRetriesExceeded
+func (s *Controller) CreateResource(ctx context.Context, originalURL string) (model.Resource, error) {
+	return withConflictRetry(func(salt int32) (model.Resource, error) {
+		return s.store.CreateResource(ctx, model.Resource{
+			OriginalURL: originalURL,
+			ShortURL:    encoder.EncodeURL(originalURL, salt),
+		})
+	})
 }
 
 func (s *Controller) GetResource(ctx context.Context, shortenedURL string) (model.Resource, error) {
@@ -51,4 +59,21 @@ func (s *Controller) GetResource(ctx context.Context, shortenedURL string) (mode
 		return model.Resource{}, err
 	}
 	return r, nil
+}
+
+func (s *Controller) CreateBatch(
+	ctx context.Context,
+	batch []model.ResourceBatchInput,
+) ([]model.ResourceBatchOutput, error) {
+	return withConflictRetry(func(salt int32) ([]model.ResourceBatchOutput, error) {
+		resources := make([]model.Resource, 0, len(batch))
+		for _, item := range batch {
+			resources = append(resources, model.Resource{
+				OriginalURL:   item.OriginalURL,
+				ShortURL:      encoder.EncodeURL(item.OriginalURL, salt),
+				CorrelationID: item.CorrelationID,
+			})
+		}
+		return s.store.CreateBatch(ctx, resources)
+	})
 }

@@ -7,28 +7,75 @@ package postgres
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
+const createBatch = `-- name: CreateBatch :many
+INSERT INTO resource (original_url, short_url, correlation_id)
+SELECT
+    UNNEST($1::TEXT[]),
+    UNNEST($2::TEXT[]),
+    UNNEST($3::UUID[])
+RETURNING correlation_id, short_url
+`
+
+type CreateBatchParams struct {
+	OriginalUrls   []string
+	ShortUrls      []string
+	CorrelationIds []uuid.UUID
+}
+
+type CreateBatchRow struct {
+	CorrelationID uuid.UUID
+	ShortUrl      string
+}
+
+func (q *Queries) CreateBatch(ctx context.Context, arg CreateBatchParams) ([]CreateBatchRow, error) {
+	rows, err := q.db.Query(ctx, createBatch, arg.OriginalUrls, arg.ShortUrls, arg.CorrelationIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CreateBatchRow
+	for rows.Next() {
+		var i CreateBatchRow
+		if err := rows.Scan(&i.CorrelationID, &i.ShortUrl); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createResource = `-- name: CreateResource :one
-INSERT INTO resource (original_url, shortened_url)
+INSERT INTO resource (original_url, short_url)
 VALUES ($1, $2)
-RETURNING id, original_url, shortened_url
+RETURNING id, original_url, short_url, correlation_id
 `
 
 type CreateResourceParams struct {
-	OriginalUrl  string
-	ShortenedUrl string
+	OriginalUrl string
+	ShortUrl    string
 }
 
 func (q *Queries) CreateResource(ctx context.Context, arg CreateResourceParams) (Resource, error) {
-	row := q.db.QueryRow(ctx, createResource, arg.OriginalUrl, arg.ShortenedUrl)
+	row := q.db.QueryRow(ctx, createResource, arg.OriginalUrl, arg.ShortUrl)
 	var i Resource
-	err := row.Scan(&i.ID, &i.OriginalUrl, &i.ShortenedUrl)
+	err := row.Scan(
+		&i.ID,
+		&i.OriginalUrl,
+		&i.ShortUrl,
+		&i.CorrelationID,
+	)
 	return i, err
 }
 
 const getResourceByID = `-- name: GetResourceByID :one
-SELECT id, original_url, shortened_url
+SELECT id, original_url, short_url, correlation_id
 FROM resource
 WHERE id = $1
 `
@@ -36,19 +83,29 @@ WHERE id = $1
 func (q *Queries) GetResourceByID(ctx context.Context, id int32) (Resource, error) {
 	row := q.db.QueryRow(ctx, getResourceByID, id)
 	var i Resource
-	err := row.Scan(&i.ID, &i.OriginalUrl, &i.ShortenedUrl)
+	err := row.Scan(
+		&i.ID,
+		&i.OriginalUrl,
+		&i.ShortUrl,
+		&i.CorrelationID,
+	)
 	return i, err
 }
 
 const getResourceByURL = `-- name: GetResourceByURL :one
-SELECT id, original_url, shortened_url
+SELECT id, original_url, short_url, correlation_id
 FROM resource
-WHERE shortened_url = $1
+WHERE short_url = $1
 `
 
-func (q *Queries) GetResourceByURL(ctx context.Context, shortenedUrl string) (Resource, error) {
-	row := q.db.QueryRow(ctx, getResourceByURL, shortenedUrl)
+func (q *Queries) GetResourceByURL(ctx context.Context, shortUrl string) (Resource, error) {
+	row := q.db.QueryRow(ctx, getResourceByURL, shortUrl)
 	var i Resource
-	err := row.Scan(&i.ID, &i.OriginalUrl, &i.ShortenedUrl)
+	err := row.Scan(
+		&i.ID,
+		&i.OriginalUrl,
+		&i.ShortUrl,
+		&i.CorrelationID,
+	)
 	return i, err
 }

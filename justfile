@@ -18,10 +18,10 @@ sqlc-generate:
     go tool sqlc generate
 
 create_migration name:
-    migrate create -ext sql -dir migrations -seq {{name}}
+    go tool migrate create -ext sql -dir migrations -seq {{name}}
 
 migrate_up:
-    migrate -database "postgres://postgres:postgres@localhost:5432/shortener?sslmode=disable" -path migrations up
+    go tool migrate -database "postgres://postgres:postgres@localhost:5432/shortener?sslmode=disable" -path migrations up
 
 migrate_down:
-    migrate -database "postgres://postgres:postgres@localhost:5432/shortener?sslmode=disable" -path migrations down
+    go tool migrate -database "postgres://postgres:postgres@localhost:5432/shortener?sslmode=disable" -path migrations down

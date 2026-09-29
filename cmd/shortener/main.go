@@ -23,7 +23,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// группирующая структура конфигурация хранилки
+// группирующая структура конфигурация хранилки.
 type repo struct {
 	repo    service.Repository
 	pool    *pgxpool.Pool
@@ -61,7 +61,6 @@ func newFileRepo(filePath string) (repo, error) {
 		repo:    r,
 		cleanup: func() { _ = fs.Close() },
 	}, nil
-
 }
 
 func newInMemoryRepo() (repo, error) {
@@ -92,17 +91,17 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	ctx := context.Background()
-	repo, err := configureRepo(ctx, settings)
+	repository, err := configureRepo(ctx, settings)
 	if err != nil {
 		return err
 	}
-	defer repo.cleanup()
+	defer repository.cleanup()
 
 	// сокращение и хранение URL
-	controller := service.NewResourceController(repo.repo)
+	controller := service.NewResourceController(repository.repo)
 	rHandler := resource.NewResourceHandler(settings.BaseURL, controller, logger)
 	// хэлсчек БД
-	hHandler := healthcheck.NewHandler(repo.pool)
+	hHandler := healthcheck.NewHandler(repository.pool)
 	baseRouter := handler.NewRouter(logger,
 		func(r chi.Router) { healthcheck.RegisterRoutes(r, hHandler) },
 		func(r chi.Router) { resource.RegisterRoutes(r, rHandler) },

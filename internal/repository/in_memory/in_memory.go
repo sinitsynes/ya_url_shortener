@@ -56,7 +56,7 @@ func (s *Store) backfillStore(f *os.File) error {
 				return err
 			}
 			s.store[r.ID] = r
-			s.lookup[r.Shortened] = r.ID
+			s.lookup[r.ShortURL] = r.ID
 			s.identifier.Store(r.ID)
 		}
 	}
@@ -66,25 +66,30 @@ func (s *Store) backfillStore(f *os.File) error {
 	return nil
 }
 
-func (s *Store) CreateResource(_ context.Context, r model.Resource) (model.Resource, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	_, exists := s.lookup[r.Shortened]
-	if exists {
-		return model.Resource{}, repository.ErrConflict
-	}
+func (s *Store) saveToStore(r model.Resource) model.Resource {
 	if r.ID == 0 {
 		r.ID = s.identifier.Add(1)
 	}
 	s.store[r.ID] = r
-	s.lookup[r.Shortened] = r.ID
+	s.lookup[r.ShortURL] = r.ID
+	return r
+}
+
+func (s *Store) CreateResource(_ context.Context, r model.Resource) (model.Resource, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, exists := s.lookup[r.ShortURL]
+	if exists {
+		return model.Resource{}, repository.ErrConflict
+	}
+	created := s.saveToStore(r)
 	if s.fileStorage != nil {
-		if err := s.fileStorage.AppendToFile(r); err != nil {
+		if err := s.fileStorage.AppendToFile(created); err != nil {
 			return model.Resource{}, err
 		}
 	}
-	return r, nil
+	return created, nil
 }
 
 func (s *Store) getResource(id int32) (model.Resource, error) {
@@ -112,12 +117,30 @@ func (s *Store) GetResourceByURL(_ context.Context, shortenedURL string) (model.
 	return s.getResource(id)
 }
 
-// Close закрывает файл, если используется запись в него. Если нет, то это no-op.
-func (s *Store) Close() error {
-	if s.fileStorage != nil {
-		if err := s.fileStorage.Close(); err != nil {
-			return err
+func (s *Store) CreateBatch(_ context.Context, resources []model.Resource) ([]model.ResourceBatchOutput, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	output := make([]model.ResourceBatchOutput, len(resources))
+	// до записи в мапу проверяем, что конфликтов не будет ни с одним из элементов списка
+	for _, item := range resources {
+		_, exists := s.lookup[item.ShortURL]
+		if exists {
+			return nil, repository.ErrConflict
 		}
 	}
-	return nil
+	// если ни с кем конфликтов нет, то записываем весь список
+	for index, item := range resources {
+		created := s.saveToStore(item)
+		if s.fileStorage != nil {
+			if err := s.fileStorage.AppendToFile(created); err != nil {
+				return nil, err
+			}
+		}
+		output[index] = model.ResourceBatchOutput{
+			CorrelationID: created.CorrelationID,
+			ShortURL:      created.ShortURL,
+		}
+	}
+	return output, nil
 }

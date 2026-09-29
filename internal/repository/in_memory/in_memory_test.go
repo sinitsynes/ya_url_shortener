@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -12,18 +13,20 @@ import (
 	inmemory "ya_url_shortener/internal/repository/in_memory"
 )
 
-func newTestStore(t *testing.T) (*inmemory.Store, string) {
+type batch struct {
+	input  []model.Resource
+	output []model.ResourceBatchOutput
+}
+
+func newTestStore(t *testing.T) (*inmemory.Store, *filestorage.FileStorage, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "storage.txt")
 	fStorage, err := filestorage.NewFileStorage(path)
 	require.NoError(t, err)
 	s, err := inmemory.NewStore(fStorage)
 	require.NoError(t, err)
-	t.Cleanup(
-		func() {
-			_ = s.Close()
-		})
-	return s, path
+	t.Cleanup(func() { _ = fStorage.Close() })
+	return s, fStorage, path
 }
 
 func TestCreateResource(t *testing.T) {
@@ -36,9 +39,9 @@ func TestCreateResource(t *testing.T) {
 		{
 			name: "happy CreateResource #1",
 			want: model.Resource{
-				ID:        1,
-				Address:   "http://ya.ru",
-				Shortened: "mocked",
+				ID:          1,
+				OriginalURL: "http://ya.ru",
+				ShortURL:    "mocked",
 			},
 		},
 	}
@@ -47,21 +50,19 @@ func TestCreateResource(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			s, path := newTestStore(t)
+			s, fStorage, path := newTestStore(t)
 			got, err := s.CreateResource(t.Context(), test.want)
 			require.NoError(t, err)
-			require.Equal(t, test.want.Address, got.Address)
-			require.Equal(t, test.want.Shortened, got.Shortened)
-			require.NoError(t, s.Close()) // закрываем репозиторий
+			require.Equal(t, test.want.OriginalURL, got.OriginalURL)
+			require.Equal(t, test.want.ShortURL, got.ShortURL)
+			require.NoError(t, fStorage.Close()) // освобождаем файл перед повторным открытием
 
 			// переоткрываем файл и пересоздаем репозиторий: должен сработать бэкфилл
-			// этот блок за пределами видимости хелпера
-			fStorage, err := filestorage.NewFileStorage(path)
+			fStorage, err = filestorage.NewFileStorage(path)
 			require.NoError(t, err)
 			recreatedStore, err := inmemory.NewStore(fStorage)
 			require.NoError(t, err)
-			// принудительный клинап пересозданного стора
-			t.Cleanup(func() { recreatedStore.Close() })
+			t.Cleanup(func() { _ = fStorage.Close() })
 
 			got, err = recreatedStore.GetResourceByID(t.Context(), test.want.ID)
 			require.NoError(t, err)
@@ -69,6 +70,7 @@ func TestCreateResource(t *testing.T) {
 		})
 	}
 }
+
 func TestGetResourceByID(t *testing.T) {
 	t.Parallel()
 
@@ -80,16 +82,16 @@ func TestGetResourceByID(t *testing.T) {
 		{
 			name: "happy GetResourceByID #1",
 			want: model.Resource{
-				ID:        1,
-				Address:   "http://ya.ru",
-				Shortened: "mocked",
+				ID:          1,
+				OriginalURL: "http://ya.ru",
+				ShortURL:    "mocked",
 			},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			s, _ := newTestStore(t)
+			s, _, _ := newTestStore(t)
 			created, err := s.CreateResource(t.Context(), test.want)
 			if test.wantErr != nil {
 				require.Error(t, err)
@@ -103,6 +105,7 @@ func TestGetResourceByID(t *testing.T) {
 		})
 	}
 }
+
 func TestGetResourceByURL(t *testing.T) {
 	t.Parallel()
 
@@ -114,9 +117,9 @@ func TestGetResourceByURL(t *testing.T) {
 		{
 			name: "happy GetResourceByURL #1",
 			want: model.Resource{
-				ID:        1,
-				Address:   "http://ya.ru",
-				Shortened: "mocked",
+				ID:          1,
+				OriginalURL: "http://ya.ru",
+				ShortURL:    "mocked",
 			},
 		},
 	}
@@ -124,7 +127,7 @@ func TestGetResourceByURL(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			s, _ := newTestStore(t)
+			s, _, _ := newTestStore(t)
 			created, err := s.CreateResource(t.Context(), test.want)
 			if test.wantErr != nil {
 				require.Error(t, err)
@@ -132,9 +135,64 @@ func TestGetResourceByURL(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			got, err := s.GetResourceByURL(t.Context(), created.Shortened)
+			got, err := s.GetResourceByURL(t.Context(), created.ShortURL)
 			require.NoError(t, err)
 			assert.Equal(t, created, got)
+		})
+	}
+}
+
+func TestCreateBatch(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		want batch
+	}{
+		{
+			name: "happy CreateBatch #1",
+			want: batch{
+				input: []model.Resource{
+					{
+						ID:            1,
+						OriginalURL:   "http://ya.ru",
+						ShortURL:      "mocked",
+						CorrelationID: uuid.MustParse("0cc3dd37-e05f-49ab-a716-e783556a7980"),
+					},
+					{
+						ID:            2,
+						OriginalURL:   "http://yandex.ru",
+						ShortURL:      "mocked2",
+						CorrelationID: uuid.MustParse("241af749-05ea-42d9-8ada-3786c6d6018b"),
+					},
+				},
+				output: []model.ResourceBatchOutput{
+					{CorrelationID: uuid.MustParse("0cc3dd37-e05f-49ab-a716-e783556a7980"), ShortURL: "mocked"},
+					{CorrelationID: uuid.MustParse("241af749-05ea-42d9-8ada-3786c6d6018b"), ShortURL: "mocked2"},
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			s, fStorage, path := newTestStore(t)
+			got, err := s.CreateBatch(t.Context(), test.want.input)
+			require.NoError(t, err)
+			require.ElementsMatch(t, test.want.output, got)
+			require.NoError(t, fStorage.Close()) // освобождаем файл перед повторным открытием
+
+			// переоткрываем файл и пересоздаем репозиторий: должен сработать бэкфилл
+			fStorage, err = filestorage.NewFileStorage(path)
+			require.NoError(t, err)
+			recreatedStore, err := inmemory.NewStore(fStorage)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = fStorage.Close() })
+
+			refilled, err := recreatedStore.GetResourceByID(t.Context(), test.want.input[0].ID)
+			require.NoError(t, err)
+			assert.Equal(t, test.want.input[0], refilled)
 		})
 	}
 }

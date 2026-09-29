@@ -14,6 +14,7 @@ import (
 	"ya_url_shortener/internal/handler/resource"
 	"ya_url_shortener/internal/model"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,9 +39,17 @@ type (
 		response     model.ResourceResult
 		contentType  string
 	}
+	wantCreateBatch struct {
+		responseCode int
+		input        []model.ResourceBatchInput
+		inputHeader  string
+		response     []model.ResourceBatchOutput
+		contentType  string
+	}
 	stubController struct {
-		createFn func(context.Context, string) (model.Resource, error)
-		getFn    func(context.Context, string) (model.Resource, error)
+		createFn      func(context.Context, string) (model.Resource, error)
+		getFn         func(context.Context, string) (model.Resource, error)
+		createBatchFn func(context.Context, []model.ResourceBatchInput) ([]model.ResourceBatchOutput, error)
 	}
 )
 
@@ -49,6 +58,13 @@ func (c stubController) CreateResource(ctx context.Context, url string) (model.R
 }
 func (c stubController) GetResource(ctx context.Context, short string) (model.Resource, error) {
 	return c.getFn(ctx, short)
+}
+
+func (c stubController) CreateBatch(
+	ctx context.Context,
+	input []model.ResourceBatchInput,
+) ([]model.ResourceBatchOutput, error) {
+	return c.createBatchFn(ctx, input)
 }
 
 func testAppConfig() *config.Config {
@@ -64,10 +80,20 @@ func setupController(t *testing.T) resource.Controller {
 
 	ctrl := stubController{
 		createFn: func(_ context.Context, url string) (model.Resource, error) {
-			return model.Resource{ID: 1, Address: url, Shortened: "6bdb5b0"}, nil
+			return model.Resource{ID: 1, OriginalURL: url, ShortURL: "6bdb5b0"}, nil
 		},
 		getFn: func(_ context.Context, short string) (model.Resource, error) {
-			return model.Resource{ID: 1, Address: "https://practicum.yandex.ru/", Shortened: short}, nil
+			return model.Resource{ID: 1, OriginalURL: "https://practicum.yandex.ru/", ShortURL: short}, nil
+		},
+		createBatchFn: func(_ context.Context, input []model.ResourceBatchInput) ([]model.ResourceBatchOutput, error) {
+			out := make([]model.ResourceBatchOutput, 0, len(input))
+			for _, item := range input {
+				out = append(out, model.ResourceBatchOutput{
+					CorrelationID: item.CorrelationID,
+					ShortURL:      "6bdb5b0",
+				})
+			}
+			return out, nil
 		},
 	}
 	return ctrl
@@ -147,7 +173,7 @@ func TestGetURL(t *testing.T) {
 			require.NoError(t, createdErr)
 
 			request := httptest.NewRequest(http.MethodGet, "/", nil)
-			request.SetPathValue("url", created.Shortened)
+			request.SetPathValue("url", created.ShortURL)
 			writer := httptest.NewRecorder()
 			h.GetURL(writer, request)
 			res := writer.Result()
@@ -194,6 +220,56 @@ func TestShortenURL(t *testing.T) {
 			assert.Equal(t, test.want.responseCode, res.StatusCode)
 			assert.Equal(t, test.want.contentType, res.Header.Get(resource.ContentTypeHeader))
 			assert.NotEmpty(t, res.Header.Get(resource.ContentLengthHeader))
+		})
+	}
+}
+
+func TestCreateBatch(t *testing.T) {
+	t.Parallel()
+	cfg := testAppConfig()
+	tests := []struct {
+		name string
+		want wantCreateBatch
+	}{
+		{
+			name: "happy CreateBatch #1",
+			want: wantCreateBatch{
+				responseCode: http.StatusCreated,
+				input: []model.ResourceBatchInput{
+					{CorrelationID: uuid.MustParse("0cc3dd37-e05f-49ab-a716-e783556a7980"), OriginalURL: "https://ya.ru"},
+					{CorrelationID: uuid.MustParse("241af749-05ea-42d9-8ada-3786c6d6018b"), OriginalURL: "https://yandex.ru"},
+				},
+				inputHeader: resource.ContentTypeJSON,
+				response: []model.ResourceBatchOutput{
+					{CorrelationID: uuid.MustParse("0cc3dd37-e05f-49ab-a716-e783556a7980"), ShortURL: "6bdb5b0"},
+					{CorrelationID: uuid.MustParse("241af749-05ea-42d9-8ada-3786c6d6018b"), ShortURL: "6bdb5b0"},
+				},
+				contentType: resource.ContentTypeJSON,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			controller := setupController(t)
+			h := setupHandler(t, cfg.BaseURL, controller)
+			input, err := json.Marshal(test.want.input)
+			require.NoError(t, err)
+			request := httptest.NewRequest(http.MethodPost, "/api/shorten/batch", bytes.NewReader(input))
+			request.Header.Set(resource.ContentTypeHeader, test.want.inputHeader)
+			writer := httptest.NewRecorder()
+			h.CreateBatch(writer, request)
+			res := writer.Result()
+			items := []model.ResourceBatchOutput{}
+			body, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+			got := json.Unmarshal(body, &items)
+			require.NoError(t, got)
+			defer res.Body.Close()
+
+			assert.Equal(t, test.want.responseCode, res.StatusCode)
+			assert.Equal(t, test.want.contentType, res.Header.Get(resource.ContentTypeHeader))
+			assert.ElementsMatch(t, test.want.response, items)
 		})
 	}
 }

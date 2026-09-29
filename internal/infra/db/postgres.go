@@ -38,7 +38,8 @@ func RunMigrations(connString string) error {
 	}
 	defer migration.Close()
 
-	if applyMigrationErr := migration.Up(); applyMigrationErr != nil && !errors.Is(applyMigrationErr, migrate.ErrNoChange) {
+	if applyMigrationErr := migration.Up(); applyMigrationErr != nil &&
+		!errors.Is(applyMigrationErr, migrate.ErrNoChange) {
 		return applyMigrationErr
 	}
 	return nil
