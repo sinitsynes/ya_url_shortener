@@ -236,8 +236,14 @@ func TestCreateBatch(t *testing.T) {
 			want: wantCreateBatch{
 				responseCode: http.StatusCreated,
 				input: []model.ResourceBatchInput{
-					{CorrelationID: uuid.MustParse("0cc3dd37-e05f-49ab-a716-e783556a7980"), OriginalURL: "https://ya.ru"},
-					{CorrelationID: uuid.MustParse("241af749-05ea-42d9-8ada-3786c6d6018b"), OriginalURL: "https://yandex.ru"},
+					{
+						CorrelationID: uuid.MustParse("0cc3dd37-e05f-49ab-a716-e783556a7980"),
+						OriginalURL:   "https://ya.ru",
+					},
+					{
+						CorrelationID: uuid.MustParse("241af749-05ea-42d9-8ada-3786c6d6018b"),
+						OriginalURL:   "https://yandex.ru",
+					},
 				},
 				inputHeader: resource.ContentTypeJSON,
 				response: []model.ResourceBatchOutput{
