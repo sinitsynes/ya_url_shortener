@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS resource(
+    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    original_url TEXT NOT NULL,
+    shortened_url TEXT NOT NULL,
+    UNIQUE (original_url, shortened_url)
+);

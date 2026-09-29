@@ -14,5 +14,6 @@ FROM scratch
 WORKDIR /app
 
 COPY --from=builder /build/app .
+COPY --from=builder /build/migrations ./migrations
 
 ENTRYPOINT ["./app"]
