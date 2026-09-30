@@ -106,7 +106,6 @@ func (h *Handler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Неподдерживаемый тип контента", http.StatusUnsupportedMediaType)
 		return
 	}
-	w.Header().Set(ContentTypeHeader, ContentTypeJSON)
 
 	input := model.ResourceInput{}
 	r.Body = http.MaxBytesReader(w, r.Body, MaxRequestSize)
@@ -149,6 +148,7 @@ func (h *Handler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Ошибка сериализации ответа", http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set(ContentTypeHeader, ContentTypeJSON)
 	w.Header().Set(ContentLengthHeader, strconv.Itoa(len(resp)))
 	w.WriteHeader(http.StatusCreated)
 	w.Write(resp) //nolint: errcheck,gosec
