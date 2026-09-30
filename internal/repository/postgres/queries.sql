@@ -9,14 +9,19 @@ SELECT
     UNNEST(@original_urls::TEXT[]),
     UNNEST(@short_urls::TEXT[]),
     UNNEST(@correlation_ids::UUID[])
-RETURNING correlation_id, short_url;
+RETURNING *;
 
 -- name: GetResourceByID :one
 SELECT *
 FROM resource
 WHERE id = @id;
 
--- name: GetResourceByURL :one
+-- name: GetResourceByShortURL :one
 SELECT *
 FROM resource
 WHERE short_url = @short_url;
+
+-- name: GetResourceByOriginalURL :one
+SELECT *
+FROM resource
+WHERE original_url = @original_url;

@@ -53,19 +53,33 @@ func (pg *Store) GetResourceByID(ctx context.Context, id int32) (model.Resource,
 	}, nil
 }
 
-func (pg *Store) GetResourceByURL(ctx context.Context, url string) (model.Resource, error) {
-	item, err := pg.queries.GetResourceByURL(ctx, url)
+func (pg *Store) GetResourceByShortURL(ctx context.Context, url string) (model.Resource, error) {
+	item, err := pg.queries.GetResourceByShortURL(ctx, url)
 	if err != nil {
 		return model.Resource{}, err
 	}
 	return model.Resource{
-		ID:          item.ID,
-		OriginalURL: item.OriginalUrl,
-		ShortURL:    item.ShortUrl,
+		ID:            item.ID,
+		OriginalURL:   item.OriginalUrl,
+		ShortURL:      item.ShortUrl,
+		CorrelationID: item.CorrelationID,
 	}, nil
 }
 
-func (pg *Store) CreateBatch(ctx context.Context, resources []model.Resource) ([]model.ResourceBatchOutput, error) {
+func (pg *Store) GetResourceByOriginalURL(ctx context.Context, url string) (model.Resource, error) {
+	item, err := pg.queries.GetResourceByOriginalURL(ctx, url)
+	if err != nil {
+		return model.Resource{}, err
+	}
+	return model.Resource{
+		ID:            item.ID,
+		OriginalURL:   item.OriginalUrl,
+		ShortURL:      item.ShortUrl,
+		CorrelationID: item.CorrelationID,
+	}, nil
+}
+
+func (pg *Store) CreateBatch(ctx context.Context, resources []model.Resource) ([]model.Resource, error) {
 	params := storage.CreateBatchParams{}
 	for _, r := range resources {
 		params.OriginalUrls = append(params.OriginalUrls, r.OriginalURL)
@@ -81,12 +95,14 @@ func (pg *Store) CreateBatch(ctx context.Context, resources []model.Resource) ([
 		}
 		return nil, err
 	}
-	res := make([]model.ResourceBatchOutput, len(items))
-	for index, item := range items {
-		res[index] = model.ResourceBatchOutput{
+	out := make([]model.Resource, 0, len(items))
+	for i, item := range out {
+		out[i] = model.Resource{
+			ID:            item.ID,
+			OriginalURL:   item.OriginalURL,
+			ShortURL:      item.ShortURL,
 			CorrelationID: item.CorrelationID,
-			ShortURL:      item.ShortUrl,
 		}
 	}
-	return res, nil
+	return out, nil
 }

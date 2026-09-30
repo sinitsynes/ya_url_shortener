@@ -21,7 +21,7 @@ create_migration name:
     go tool migrate create -ext sql -dir migrations -seq {{name}}
 
 migrate_up:
-    go tool migrate -database "postgres://postgres:postgres@localhost:5432/shortener?sslmode=disable" -path migrations up
+    migrate -database "postgres://postgres:postgres@localhost:5432/shortener?sslmode=disable" -path migrations up
 
 migrate_down:
-    go tool migrate -database "postgres://postgres:postgres@localhost:5432/shortener?sslmode=disable" -path migrations down
+    migrate -database "postgres://postgres:postgres@localhost:5432/shortener?sslmode=disable" -path migrations down

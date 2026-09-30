@@ -135,7 +135,7 @@ func TestGetResourceByURL(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			got, err := s.GetResourceByURL(t.Context(), created.ShortURL)
+			got, err := s.GetResourceByShortURL(t.Context(), created.ShortURL)
 			require.NoError(t, err)
 			assert.Equal(t, created, got)
 		})
@@ -180,7 +180,10 @@ func TestCreateBatch(t *testing.T) {
 			s, fStorage, path := newTestStore(t)
 			got, err := s.CreateBatch(t.Context(), test.want.input)
 			require.NoError(t, err)
-			require.ElementsMatch(t, test.want.output, got)
+			for i, item := range got {
+				have := model.ResourceBatchOutput{CorrelationID: item.CorrelationID, ShortURL: item.ShortURL}
+				assert.Equal(t, test.want.output[i], have)
+			}
 			require.NoError(t, fStorage.Close()) // освобождаем файл перед повторным открытием
 
 			// переоткрываем файл и пересоздаем репозиторий: должен сработать бэкфилл

@@ -106,7 +106,7 @@ func (s *Store) GetResourceByID(_ context.Context, id int32) (model.Resource, er
 	return s.getResource(id)
 }
 
-func (s *Store) GetResourceByURL(_ context.Context, shortenedURL string) (model.Resource, error) {
+func (s *Store) GetResourceByShortURL(_ context.Context, shortenedURL string) (model.Resource, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -117,11 +117,23 @@ func (s *Store) GetResourceByURL(_ context.Context, shortenedURL string) (model.
 	return s.getResource(id)
 }
 
-func (s *Store) CreateBatch(_ context.Context, resources []model.Resource) ([]model.ResourceBatchOutput, error) {
+func (s *Store) GetResourceByOriginalURL(_ context.Context, originalURL string) (model.Resource, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	output := make([]model.ResourceBatchOutput, len(resources))
+	for _, item := range s.store {
+		if item.OriginalURL == originalURL {
+			return item, nil
+		}
+	}
+	return model.Resource{}, repository.ErrNotFound
+}
+
+func (s *Store) CreateBatch(_ context.Context, resources []model.Resource) ([]model.Resource, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	output := make([]model.Resource, len(resources))
 	// до записи в мапу проверяем, что конфликтов не будет ни с одним из элементов списка
 	for _, item := range resources {
 		_, exists := s.lookup[item.ShortURL]
@@ -137,7 +149,9 @@ func (s *Store) CreateBatch(_ context.Context, resources []model.Resource) ([]mo
 				return nil, err
 			}
 		}
-		output[index] = model.ResourceBatchOutput{
+		output[index] = model.Resource{
+			ID:            created.ID,
+			OriginalURL:   created.OriginalURL,
 			CorrelationID: created.CorrelationID,
 			ShortURL:      created.ShortURL,
 		}

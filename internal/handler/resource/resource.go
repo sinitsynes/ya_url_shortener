@@ -55,7 +55,6 @@ func (h *Handler) CreateURL(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Превышен максимальный размер запроса", http.StatusRequestEntityTooLarge)
 			return
 		}
-
 		http.Error(w, "Ошибка чтения запроса", http.StatusBadRequest)
 		return
 	}
@@ -63,19 +62,20 @@ func (h *Handler) CreateURL(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), h.requestTimeout)
 	defer cancel()
 	resource, err := h.controller.CreateResource(ctx, bodyString)
-	if errors.Is(err, service.ErrMaxRetriesExceeded) {
-		h.logger.ErrorContext(ctx, "create url error", "error", err)
-		http.Error(w, "Превышено количество попыток создания ресурса", http.StatusInternalServerError)
-		return
-	}
-	if errors.Is(err, repository.ErrConflict) {
-		http.Error(w, "Запись с URL уже существует", http.StatusConflict)
-		return
-	}
 	if err != nil {
-		h.logger.ErrorContext(ctx, "create url error", "error", err)
-		http.Error(w, "Ошибка создания ресурса", http.StatusInternalServerError)
-		return
+		switch {
+		case errors.Is(err, service.ErrMaxRetriesExceeded):
+			h.logger.ErrorContext(ctx, "create url error", "error", err)
+			http.Error(w, "Превышено количество попыток создания ресурса", http.StatusInternalServerError)
+			return
+		case errors.Is(err, repository.ErrConflict):
+			http.Error(w, "Запись с URL уже существует", http.StatusConflict)
+			return
+		default:
+			h.logger.ErrorContext(ctx, "create url error", "error", err)
+			http.Error(w, "Ошибка создания ресурса", http.StatusInternalServerError)
+			return
+		}
 	}
 	resp := resource.ShortURL
 	w.Header().Set(ContentTypeHeader, ContentTypePlainText)

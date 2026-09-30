@@ -16,8 +16,9 @@ var ErrMaxRetriesExceeded = errors.New("failed to generate unique shortened url"
 type Repository interface {
 	CreateResource(context.Context, model.Resource) (model.Resource, error)
 	GetResourceByID(context.Context, int32) (model.Resource, error)
-	GetResourceByURL(context.Context, string) (model.Resource, error)
-	CreateBatch(context.Context, []model.Resource) ([]model.ResourceBatchOutput, error)
+	GetResourceByShortURL(context.Context, string) (model.Resource, error)
+	GetResourceByOriginalURL(context.Context, string) (model.Resource, error)
+	CreateBatch(context.Context, []model.Resource) ([]model.Resource, error)
 }
 
 type Controller struct {
@@ -48,6 +49,10 @@ func withConflictRetry[T any](attempt func(salt int32) (T, error)) (T, error) {
 }
 
 func (s *Controller) CreateResource(ctx context.Context, originalURL string) (model.Resource, error) {
+	_, err := s.store.GetResourceByOriginalURL(ctx, originalURL)
+	if err == nil {
+		return model.Resource{}, repository.ErrConflict
+	}
 	return withConflictRetry(func(salt int32) (model.Resource, error) {
 		created, err := s.store.CreateResource(ctx, model.Resource{
 			OriginalURL: originalURL,
@@ -62,7 +67,7 @@ func (s *Controller) CreateResource(ctx context.Context, originalURL string) (mo
 }
 
 func (s *Controller) GetResource(ctx context.Context, shortenedURL string) (model.Resource, error) {
-	r, err := s.store.GetResourceByURL(ctx, shortenedURL)
+	r, err := s.store.GetResourceByShortURL(ctx, shortenedURL)
 	if err != nil {
 		return model.Resource{}, err
 	}
@@ -87,9 +92,13 @@ func (s *Controller) CreateBatch(
 		if err != nil {
 			return nil, err
 		}
-		for i := range created {
-			created[i].ShortURL = s.baseURL + "/" + created[i].ShortURL
+		out := make([]model.ResourceBatchOutput, len(created))
+		for i, item := range created {
+			out[i] = model.ResourceBatchOutput{
+				CorrelationID: item.CorrelationID,
+				ShortURL:      s.baseURL + "/" + item.ShortURL,
+			}
 		}
-		return created, nil
+		return out, nil
 	})
 }

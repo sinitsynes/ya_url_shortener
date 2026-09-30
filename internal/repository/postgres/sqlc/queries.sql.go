@@ -17,7 +17,7 @@ SELECT
     UNNEST($1::TEXT[]),
     UNNEST($2::TEXT[]),
     UNNEST($3::UUID[])
-RETURNING correlation_id, short_url
+RETURNING id, original_url, short_url, correlation_id
 `
 
 type CreateBatchParams struct {
@@ -26,21 +26,21 @@ type CreateBatchParams struct {
 	CorrelationIds []uuid.UUID
 }
 
-type CreateBatchRow struct {
-	CorrelationID uuid.UUID
-	ShortUrl      string
-}
-
-func (q *Queries) CreateBatch(ctx context.Context, arg CreateBatchParams) ([]CreateBatchRow, error) {
+func (q *Queries) CreateBatch(ctx context.Context, arg CreateBatchParams) ([]Resource, error) {
 	rows, err := q.db.Query(ctx, createBatch, arg.OriginalUrls, arg.ShortUrls, arg.CorrelationIds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []CreateBatchRow
+	var items []Resource
 	for rows.Next() {
-		var i CreateBatchRow
-		if err := rows.Scan(&i.CorrelationID, &i.ShortUrl); err != nil {
+		var i Resource
+		if err := rows.Scan(
+			&i.ID,
+			&i.OriginalUrl,
+			&i.ShortUrl,
+			&i.CorrelationID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -92,14 +92,32 @@ func (q *Queries) GetResourceByID(ctx context.Context, id int32) (Resource, erro
 	return i, err
 }
 
-const getResourceByURL = `-- name: GetResourceByURL :one
+const getResourceByOriginalURL = `-- name: GetResourceByOriginalURL :one
+SELECT id, original_url, short_url, correlation_id
+FROM resource
+WHERE original_url = $1
+`
+
+func (q *Queries) GetResourceByOriginalURL(ctx context.Context, originalUrl string) (Resource, error) {
+	row := q.db.QueryRow(ctx, getResourceByOriginalURL, originalUrl)
+	var i Resource
+	err := row.Scan(
+		&i.ID,
+		&i.OriginalUrl,
+		&i.ShortUrl,
+		&i.CorrelationID,
+	)
+	return i, err
+}
+
+const getResourceByShortURL = `-- name: GetResourceByShortURL :one
 SELECT id, original_url, short_url, correlation_id
 FROM resource
 WHERE short_url = $1
 `
 
-func (q *Queries) GetResourceByURL(ctx context.Context, shortUrl string) (Resource, error) {
-	row := q.db.QueryRow(ctx, getResourceByURL, shortUrl)
+func (q *Queries) GetResourceByShortURL(ctx context.Context, shortUrl string) (Resource, error) {
+	row := q.db.QueryRow(ctx, getResourceByShortURL, shortUrl)
 	var i Resource
 	err := row.Scan(
 		&i.ID,
