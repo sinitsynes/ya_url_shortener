@@ -54,12 +54,12 @@ func (s *Controller) CreateResource(ctx context.Context, originalURL string) (mo
 		return model.Resource{}, repository.ErrConflict
 	}
 	return withConflictRetry(func(salt int32) (model.Resource, error) {
-		created, err := s.store.CreateResource(ctx, model.Resource{
+		created, createErr := s.store.CreateResource(ctx, model.Resource{
 			OriginalURL: originalURL,
 			ShortURL:    encoder.EncodeURL(originalURL, salt),
 		})
-		if err != nil {
-			return model.Resource{}, err
+		if createErr != nil {
+			return model.Resource{}, createErr
 		}
 		created.ShortURL = s.baseURL + "/" + created.ShortURL
 		return created, nil

@@ -95,12 +95,12 @@ func (pg *Store) CreateBatch(ctx context.Context, resources []model.Resource) ([
 		}
 		return nil, err
 	}
-	out := make([]model.Resource, 0, len(items))
-	for i, item := range out {
+	out := make([]model.Resource, len(items))
+	for i, item := range items {
 		out[i] = model.Resource{
 			ID:            item.ID,
-			OriginalURL:   item.OriginalURL,
-			ShortURL:      item.ShortURL,
+			OriginalURL:   item.OriginalUrl,
+			ShortURL:      item.ShortUrl,
 			CorrelationID: item.CorrelationID,
 		}
 	}
