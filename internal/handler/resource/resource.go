@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
 	"ya_url_shortener/internal/model"
 	"ya_url_shortener/internal/repository"
 	"ya_url_shortener/internal/service"
@@ -110,7 +111,7 @@ func (h *Handler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	input := new(model.ResourceInput)
-	if err := json.Unmarshal(bodyBytes, input); err != nil {
+	if marshalErr := json.Unmarshal(bodyBytes, input); marshalErr != nil {
 		http.Error(w, "Ошибка декодирования запроса", http.StatusBadRequest)
 		return
 	}
@@ -164,10 +165,10 @@ func (h *Handler) CreateBatch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Ошибка декодирования запроса", http.StatusBadRequest)
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), h.requestTimeout)
-	defer cancel()
+	ctx := r.Context()
 	created, err := h.controller.CreateBatch(ctx, input)
 	if err != nil {
+		h.logger.ErrorContext(ctx, "create batch", "err", err)
 		http.Error(w, "Ошибка создания ресурсов", http.StatusInternalServerError)
 		return
 	}
