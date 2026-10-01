@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
-	"time"
 
 	"ya_url_shortener/internal/model"
 	"ya_url_shortener/internal/repository"
@@ -29,9 +28,8 @@ type Controller interface {
 }
 
 type Handler struct {
-	controller     Controller
-	logger         *slog.Logger
-	requestTimeout time.Duration
+	controller Controller
+	logger     *slog.Logger
 }
 
 func NewResourceHandler(controller Controller, logger *slog.Logger) *Handler {
