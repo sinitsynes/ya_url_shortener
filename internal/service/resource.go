@@ -51,6 +51,7 @@ func withConflictRetry[T any](attempt func(salt int32) (T, error)) (T, error) {
 func (s *Controller) CreateResource(ctx context.Context, originalURL string) (model.Resource, error) {
 	existing, err := s.store.GetResourceByOriginalURL(ctx, originalURL)
 	if err == nil {
+		existing.ShortURL = s.baseURL + "/" + existing.ShortURL
 		return existing, repository.ErrConflict
 	}
 	return withConflictRetry(func(salt int32) (model.Resource, error) {

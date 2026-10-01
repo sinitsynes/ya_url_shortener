@@ -44,6 +44,7 @@ func NewResourceHandler(controller Controller, logger *slog.Logger) *Handler {
 
 func (h *Handler) CreateURL(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	httpStatus := http.StatusCreated
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
@@ -62,8 +63,7 @@ func (h *Handler) CreateURL(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Превышено количество попыток создания ресурса", http.StatusInternalServerError)
 			return
 		case errors.Is(err, repository.ErrConflict):
-			http.Error(w, "Запись с URL уже существует", http.StatusConflict)
-			return
+			httpStatus = http.StatusConflict
 		default:
 			h.logger.ErrorContext(ctx, "create url error", "error", err)
 			http.Error(w, "Ошибка создания ресурса", http.StatusInternalServerError)
@@ -72,7 +72,7 @@ func (h *Handler) CreateURL(w http.ResponseWriter, r *http.Request) {
 	}
 	resp := resource.ShortURL
 	w.Header().Set(ContentTypeHeader, ContentTypePlainText)
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(httpStatus)
 	w.Write([]byte(resp)) //nolint: errcheck,gosec
 }
 
