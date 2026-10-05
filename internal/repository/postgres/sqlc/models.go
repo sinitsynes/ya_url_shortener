@@ -4,13 +4,9 @@
 
 package postgres
 
-import (
-	"github.com/google/uuid"
-)
-
 type Resource struct {
 	ID            int32
 	OriginalUrl   string
 	ShortUrl      string
-	CorrelationID uuid.UUID
+	CorrelationID *string
 }

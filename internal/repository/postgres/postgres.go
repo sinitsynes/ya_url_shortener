@@ -32,6 +32,13 @@ func (pg *Store) CreateResource(ctx context.Context, r model.Resource) (model.Re
 		ShortUrl:    r.ShortURL}
 	created, err := pg.queries.CreateResource(ctx, createParams)
 	if err != nil {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
+			if pgErr.Code == pgerrcode.UniqueViolation &&
+				pgErr.ConstraintName == "resource_original_url_key" {
+				return model.Resource{}, repository.ErrOriginalURLExists(pgErr.Message)
+			}
+			return model.Resource{}, repository.ErrConflict
+		}
 		return model.Resource{}, err
 	}
 	return model.Resource{
@@ -62,7 +69,7 @@ func (pg *Store) GetResourceByShortURL(ctx context.Context, url string) (model.R
 		ID:            item.ID,
 		OriginalURL:   item.OriginalUrl,
 		ShortURL:      item.ShortUrl,
-		CorrelationID: item.CorrelationID,
+		CorrelationID: *item.CorrelationID,
 	}, nil
 }
 
@@ -75,7 +82,7 @@ func (pg *Store) GetResourceByOriginalURL(ctx context.Context, url string) (mode
 		ID:            item.ID,
 		OriginalURL:   item.OriginalUrl,
 		ShortURL:      item.ShortUrl,
-		CorrelationID: item.CorrelationID,
+		CorrelationID: *item.CorrelationID,
 	}, nil
 }
 
@@ -90,6 +97,9 @@ func (pg *Store) CreateBatch(ctx context.Context, resources []model.Resource) ([
 	if err != nil {
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
 			if pgErr.Code == pgerrcode.UniqueViolation {
+				if pgErr.ConstraintName == "resource_original_url_key" {
+					return nil, repository.ErrOriginalURLExists(pgErr.Message)
+				}
 				return nil, repository.ErrConflict
 			}
 		}
@@ -101,8 +111,14 @@ func (pg *Store) CreateBatch(ctx context.Context, resources []model.Resource) ([
 			ID:            item.ID,
 			OriginalURL:   item.OriginalUrl,
 			ShortURL:      item.ShortUrl,
-			CorrelationID: item.CorrelationID,
+			CorrelationID: *item.CorrelationID,
 		}
 	}
 	return out, nil
+}
+
+// Close возвращает error ради соответствия интерфейсу репозитория.
+func (pg *Store) Close() error {
+	pg.pool.Close()
+	return nil
 }

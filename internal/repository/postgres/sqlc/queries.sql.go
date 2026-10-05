@@ -7,8 +7,6 @@ package postgres
 
 import (
 	"context"
-
-	"github.com/google/uuid"
 )
 
 const createBatch = `-- name: CreateBatch :many
@@ -16,14 +14,14 @@ INSERT INTO resource (original_url, short_url, correlation_id)
 SELECT
     UNNEST($1::TEXT[]),
     UNNEST($2::TEXT[]),
-    UNNEST($3::UUID[])
+    UNNEST($3::TEXT[])
 RETURNING id, original_url, short_url, correlation_id
 `
 
 type CreateBatchParams struct {
 	OriginalUrls   []string
 	ShortUrls      []string
-	CorrelationIds []uuid.UUID
+	CorrelationIds []string
 }
 
 func (q *Queries) CreateBatch(ctx context.Context, arg CreateBatchParams) ([]Resource, error) {

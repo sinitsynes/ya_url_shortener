@@ -62,7 +62,7 @@ func (h *Handler) CreateURL(w http.ResponseWriter, r *http.Request) {
 			h.logger.ErrorContext(ctx, "create url error", "error", err)
 			http.Error(w, "Превышено количество попыток создания ресурса", http.StatusInternalServerError)
 			return
-		case errors.Is(err, repository.ErrConflict):
+		case errors.Is(err, repository.ErrOriginalURLConflict):
 			httpStatus = http.StatusConflict
 		default:
 			h.logger.ErrorContext(ctx, "create url error", "error", err)
@@ -121,7 +121,7 @@ func (h *Handler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 			h.logger.ErrorContext(r.Context(), "shorten url error", "error", err)
 			http.Error(w, "Превышено количество попыток создания ресурса", http.StatusInternalServerError)
 			return
-		case errors.Is(err, repository.ErrConflict):
+		case errors.Is(err, repository.ErrOriginalURLConflict):
 			httpStatus = http.StatusConflict
 		default:
 			h.logger.ErrorContext(ctx, "shorten url error", "error", err)
@@ -166,9 +166,19 @@ func (h *Handler) CreateBatch(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	created, err := h.controller.CreateBatch(ctx, input)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "create batch", "err", err)
-		http.Error(w, "Ошибка создания ресурсов", http.StatusInternalServerError)
-		return
+		switch {
+		case errors.Is(err, service.ErrMaxRetriesExceeded):
+			h.logger.ErrorContext(ctx, "create batch", "err", err)
+			http.Error(w, "Превышено количество попыток создания ресурса", http.StatusInternalServerError)
+			return
+		case errors.Is(err, repository.ErrOriginalURLConflict):
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		default:
+			h.logger.ErrorContext(ctx, "create batch", "err", err)
+			http.Error(w, "Ошибка создания ресурсов", http.StatusInternalServerError)
+			return
+		}
 	}
 	res, err := json.Marshal(created)
 	if err != nil {

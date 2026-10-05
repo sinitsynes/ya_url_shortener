@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -157,18 +156,18 @@ func TestCreateBatch(t *testing.T) {
 						ID:            1,
 						OriginalURL:   "http://ya.ru",
 						ShortURL:      "mocked",
-						CorrelationID: uuid.MustParse("0cc3dd37-e05f-49ab-a716-e783556a7980"),
+						CorrelationID: "example1",
 					},
 					{
 						ID:            2,
 						OriginalURL:   "http://yandex.ru",
 						ShortURL:      "mocked2",
-						CorrelationID: uuid.MustParse("241af749-05ea-42d9-8ada-3786c6d6018b"),
+						CorrelationID: "example2",
 					},
 				},
 				output: []model.ResourceBatchOutput{
-					{CorrelationID: uuid.MustParse("0cc3dd37-e05f-49ab-a716-e783556a7980"), ShortURL: "mocked"},
-					{CorrelationID: uuid.MustParse("241af749-05ea-42d9-8ada-3786c6d6018b"), ShortURL: "mocked2"},
+					{CorrelationID: "example1", ShortURL: "mocked"},
+					{CorrelationID: "example2", ShortURL: "mocked2"},
 				},
 			},
 		},

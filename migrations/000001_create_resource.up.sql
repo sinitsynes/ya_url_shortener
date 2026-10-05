@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS resource(
     id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    original_url TEXT NOT NULL UNIQUE,
-    short_url TEXT NOT NULL,
-    correlation_id UUID
+    original_url VARCHAR(255) NOT NULL UNIQUE,
+    short_url VARCHAR(12) NOT NULL,
+    correlation_id VARCHAR(255) NULL
 );

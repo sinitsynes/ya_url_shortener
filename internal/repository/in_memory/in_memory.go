@@ -79,6 +79,11 @@ func (s *Store) CreateResource(_ context.Context, r model.Resource) (model.Resou
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	for _, item := range s.store {
+		if item.OriginalURL == r.OriginalURL {
+			return model.Resource{}, repository.ErrOriginalURLConflict
+		}
+	}
 	_, exists := s.lookup[r.ShortURL]
 	if exists {
 		return model.Resource{}, repository.ErrConflict
@@ -134,8 +139,18 @@ func (s *Store) CreateBatch(_ context.Context, resources []model.Resource) ([]mo
 	defer s.mu.Unlock()
 
 	output := make([]model.Resource, len(resources))
+	seenOriginal := make(map[string]struct{}, len(resources))
 	// до записи в мапу проверяем, что конфликтов не будет ни с одним из элементов списка
 	for _, item := range resources {
+		if _, dup := seenOriginal[item.OriginalURL]; dup {
+			return nil, repository.ErrOriginalURLConflict
+		}
+		seenOriginal[item.OriginalURL] = struct{}{}
+		for _, existing := range s.store {
+			if existing.OriginalURL == item.OriginalURL {
+				return nil, repository.ErrOriginalURLConflict
+			}
+		}
 		_, exists := s.lookup[item.ShortURL]
 		if exists {
 			return nil, repository.ErrConflict
@@ -157,4 +172,13 @@ func (s *Store) CreateBatch(_ context.Context, resources []model.Resource) ([]mo
 		}
 	}
 	return output, nil
+}
+
+func (s *Store) Close() error {
+	if s.fileStorage != nil {
+		if err := s.fileStorage.Close(); err != nil {
+			return err
+		}
+	}
+	return nil
 }

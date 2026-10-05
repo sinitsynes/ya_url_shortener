@@ -1,25 +1,27 @@
 package healthcheck
 
 import (
-	"fmt"
+	"log/slog"
 	"net/http"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"ya_url_shortener/internal/infra/db"
 )
 
 type Handler struct {
-	db *pgxpool.Pool
+	pinger db.Pinger
+	logger *slog.Logger
 }
 
-func NewHandler(pool *pgxpool.Pool) *Handler {
-	return &Handler{db: pool}
+func NewHandler(pinger db.Pinger, logger *slog.Logger) *Handler {
+	return &Handler{pinger: pinger, logger: logger}
 }
 
 func (h *Handler) CheckDatabase(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	if err := h.db.Ping(ctx); err != nil {
-		http.Error(w, fmt.Sprintf("database is not available: %s", err.Error()), http.StatusInternalServerError)
+	if err := h.pinger.Ping(ctx); err != nil {
+		h.logger.ErrorContext(r.Context(), "database is not available", "error", err)
+		http.Error(w, "service not available", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)

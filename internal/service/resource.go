@@ -19,6 +19,7 @@ type Repository interface {
 	GetResourceByShortURL(context.Context, string) (model.Resource, error)
 	GetResourceByOriginalURL(context.Context, string) (model.Resource, error)
 	CreateBatch(context.Context, []model.Resource) ([]model.Resource, error)
+	Close() error
 }
 
 type Controller struct {
@@ -32,7 +33,8 @@ func NewResourceController(baseURL string, repository Repository) *Controller {
 		store:   repository}
 }
 
-// withConflictRetry повторяет попытку создания записей, пока количество попыток не перевалит за константу.
+// withConflictRetry повторяет попытку создания записей,
+// пока количество попыток не перевалит за константу.
 // При условии, что срабатывать будет только ошибка ErrConflict.
 func withConflictRetry[T any](attempt func(salt int32) (T, error)) (T, error) {
 	var zero T
@@ -52,7 +54,7 @@ func (s *Controller) CreateResource(ctx context.Context, originalURL string) (mo
 	existing, err := s.store.GetResourceByOriginalURL(ctx, originalURL)
 	if err == nil {
 		existing.ShortURL = s.baseURL + "/" + existing.ShortURL
-		return existing, repository.ErrConflict
+		return existing, repository.ErrOriginalURLConflict
 	}
 	return withConflictRetry(func(salt int32) (model.Resource, error) {
 		created, createErr := s.store.CreateResource(ctx, model.Resource{

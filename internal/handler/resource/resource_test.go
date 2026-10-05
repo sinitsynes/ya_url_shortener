@@ -14,7 +14,6 @@ import (
 	"ya_url_shortener/internal/handler/resource"
 	"ya_url_shortener/internal/model"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -237,22 +236,22 @@ func TestCreateBatch(t *testing.T) {
 				responseCode: http.StatusCreated,
 				input: []model.ResourceBatchInput{
 					{
-						CorrelationID: uuid.MustParse("0cc3dd37-e05f-49ab-a716-e783556a7980"),
+						CorrelationID: "example1",
 						OriginalURL:   "https://ya.ru",
 					},
 					{
-						CorrelationID: uuid.MustParse("241af749-05ea-42d9-8ada-3786c6d6018b"),
+						CorrelationID: "example2",
 						OriginalURL:   "https://yandex.ru",
 					},
 				},
 				inputHeader: resource.ContentTypeJSON,
 				response: []model.ResourceBatchOutput{
 					{
-						CorrelationID: uuid.MustParse("0cc3dd37-e05f-49ab-a716-e783556a7980"),
+						CorrelationID: "example1",
 						ShortURL:      cfg.BaseURL + "/6bdb5b0",
 					},
 					{
-						CorrelationID: uuid.MustParse("241af749-05ea-42d9-8ada-3786c6d6018b"),
+						CorrelationID: "example2",
 						ShortURL:      cfg.BaseURL + "/6bdb5b0",
 					},
 				},
