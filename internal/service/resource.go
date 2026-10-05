@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 
 	"ya_url_shortener/internal/model"
@@ -8,46 +9,99 @@ import (
 	"ya_url_shortener/pkg/encoder"
 )
 
-const maxCreateAttempts = 5
+const maxCreateAttempts int32 = 5
 
 var ErrMaxRetriesExceeded = errors.New("failed to generate unique shortened url")
 
 type Repository interface {
-	CreateResource(model.Resource) (model.Resource, error)
-	GetResourceByID(int32) (model.Resource, error)
-	GetResourceByURL(string) (model.Resource, error)
+	CreateResource(context.Context, model.Resource) (model.Resource, error)
+	GetResourceByID(context.Context, int32) (model.Resource, error)
+	GetResourceByShortURL(context.Context, string) (model.Resource, error)
+	GetResourceByOriginalURL(context.Context, string) (model.Resource, error)
+	CreateBatch(context.Context, []model.Resource) ([]model.Resource, error)
+	Close() error
 }
 
 type Controller struct {
-	store Repository
+	baseURL string
+	store   Repository
 }
 
-func NewResourceController(repository Repository) *Controller {
-	return &Controller{store: repository}
+func NewResourceController(baseURL string, repository Repository) *Controller {
+	return &Controller{
+		baseURL: baseURL,
+		store:   repository}
 }
 
-func (s *Controller) CreateResource(originalURL string) (model.Resource, error) {
-	newResource := model.Resource{Address: originalURL}
-
-	for saltCounter := range maxCreateAttempts {
-		newResource.Shortened = encoder.EncodeURL(originalURL, int32(saltCounter))
-
-		created, err := s.store.CreateResource(newResource)
+// withConflictRetry повторяет попытку создания записей,
+// пока количество попыток не перевалит за константу.
+// При условии, что срабатывать будет только ошибка ErrConflict.
+func withConflictRetry[T any](attempt func(salt int32) (T, error)) (T, error) {
+	var zero T
+	for salt := range maxCreateAttempts {
+		result, err := attempt(salt)
 		if err == nil {
-			return created, nil
+			return result, nil
 		}
 		if !errors.Is(err, repository.ErrConflict) {
-			return model.Resource{}, err
+			return zero, err
 		}
 	}
-
-	return model.Resource{}, ErrMaxRetriesExceeded
+	return zero, ErrMaxRetriesExceeded
 }
 
-func (s *Controller) GetResource(shortenedURL string) (model.Resource, error) {
-	r, err := s.store.GetResourceByURL(shortenedURL)
+func (s *Controller) CreateResource(ctx context.Context, originalURL string) (model.Resource, error) {
+	existing, err := s.store.GetResourceByOriginalURL(ctx, originalURL)
+	if err == nil {
+		existing.ShortURL = s.baseURL + "/" + existing.ShortURL
+		return existing, repository.ErrOriginalURLConflict
+	}
+	return withConflictRetry(func(salt int32) (model.Resource, error) {
+		created, createErr := s.store.CreateResource(ctx, model.Resource{
+			OriginalURL: originalURL,
+			ShortURL:    encoder.EncodeURL(originalURL, salt),
+		})
+		if createErr != nil {
+			return model.Resource{}, createErr
+		}
+		created.ShortURL = s.baseURL + "/" + created.ShortURL
+		return created, nil
+	})
+}
+
+func (s *Controller) GetResource(ctx context.Context, shortenedURL string) (model.Resource, error) {
+	r, err := s.store.GetResourceByShortURL(ctx, shortenedURL)
 	if err != nil {
 		return model.Resource{}, err
 	}
+	r.ShortURL = s.baseURL + "/" + r.ShortURL
 	return r, nil
+}
+
+func (s *Controller) CreateBatch(
+	ctx context.Context,
+	batch []model.ResourceBatchInput,
+) ([]model.ResourceBatchOutput, error) {
+	return withConflictRetry(func(salt int32) ([]model.ResourceBatchOutput, error) {
+		resources := make([]model.Resource, len(batch))
+		for i, item := range batch {
+			resources[i] = model.Resource{
+				OriginalURL:   item.OriginalURL,
+				ShortURL:      encoder.EncodeURL(item.OriginalURL, salt),
+				CorrelationID: &item.CorrelationID,
+			}
+		}
+		created, err := s.store.CreateBatch(ctx, resources)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]model.ResourceBatchOutput, len(created))
+		for i, item := range created {
+			out[i] = model.ResourceBatchOutput{
+				CorrelationID: *item.CorrelationID,
+				ShortURL:      s.baseURL + "/" + item.ShortURL,
+			}
+		}
+		return out, nil
+	})
 }
