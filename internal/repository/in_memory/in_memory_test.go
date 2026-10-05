@@ -17,6 +17,10 @@ type batch struct {
 	output []model.ResourceBatchOutput
 }
 
+func strPtr(s string) *string {
+	return &s
+}
+
 func newTestStore(t *testing.T) (*inmemory.Store, *filestorage.FileStorage, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "storage.txt")
@@ -156,13 +160,13 @@ func TestCreateBatch(t *testing.T) {
 						ID:            1,
 						OriginalURL:   "http://ya.ru",
 						ShortURL:      "mocked",
-						CorrelationID: "example1",
+						CorrelationID: strPtr("example1"),
 					},
 					{
 						ID:            2,
 						OriginalURL:   "http://yandex.ru",
 						ShortURL:      "mocked2",
-						CorrelationID: "example2",
+						CorrelationID: strPtr("example2"),
 					},
 				},
 				output: []model.ResourceBatchOutput{
@@ -180,7 +184,7 @@ func TestCreateBatch(t *testing.T) {
 			got, err := s.CreateBatch(t.Context(), test.want.input)
 			require.NoError(t, err)
 			for i, item := range got {
-				have := model.ResourceBatchOutput{CorrelationID: item.CorrelationID, ShortURL: item.ShortURL}
+				have := model.ResourceBatchOutput{CorrelationID: *item.CorrelationID, ShortURL: item.ShortURL}
 				assert.Equal(t, test.want.output[i], have)
 			}
 			require.NoError(t, fStorage.Close()) // освобождаем файл перед повторным открытием

@@ -69,7 +69,7 @@ func (pg *Store) GetResourceByShortURL(ctx context.Context, url string) (model.R
 		ID:            item.ID,
 		OriginalURL:   item.OriginalUrl,
 		ShortURL:      item.ShortUrl,
-		CorrelationID: *item.CorrelationID,
+		CorrelationID: item.CorrelationID,
 	}, nil
 }
 
@@ -82,7 +82,7 @@ func (pg *Store) GetResourceByOriginalURL(ctx context.Context, url string) (mode
 		ID:            item.ID,
 		OriginalURL:   item.OriginalUrl,
 		ShortURL:      item.ShortUrl,
-		CorrelationID: *item.CorrelationID,
+		CorrelationID: item.CorrelationID,
 	}, nil
 }
 
@@ -91,7 +91,7 @@ func (pg *Store) CreateBatch(ctx context.Context, resources []model.Resource) ([
 	for _, r := range resources {
 		params.OriginalUrls = append(params.OriginalUrls, r.OriginalURL)
 		params.ShortUrls = append(params.ShortUrls, r.ShortURL)
-		params.CorrelationIds = append(params.CorrelationIds, r.CorrelationID)
+		params.CorrelationIds = append(params.CorrelationIds, *r.CorrelationID)
 	}
 	items, err := pg.queries.CreateBatch(ctx, params)
 	if err != nil {
@@ -111,7 +111,7 @@ func (pg *Store) CreateBatch(ctx context.Context, resources []model.Resource) ([
 			ID:            item.ID,
 			OriginalURL:   item.OriginalUrl,
 			ShortURL:      item.ShortUrl,
-			CorrelationID: *item.CorrelationID,
+			CorrelationID: item.CorrelationID,
 		}
 	}
 	return out, nil

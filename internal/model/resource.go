@@ -2,10 +2,10 @@ package model
 
 type (
 	Resource struct {
-		ID            int32  `json:"uuid"`
-		OriginalURL   string `json:"original_url"`
-		ShortURL      string `json:"short_url"`
-		CorrelationID string `json:"correlation_id,omitempty"`
+		ID            int32   `json:"uuid"`
+		OriginalURL   string  `json:"original_url"`
+		ShortURL      string  `json:"short_url"`
+		CorrelationID *string `json:"correlation_id,omitempty"`
 	}
 	ResourceInput struct {
 		URL string `json:"url"`

@@ -6,10 +6,11 @@ import (
 	"net/url"
 
 	"ya_url_shortener/internal/config/db"
+	"ya_url_shortener/migrations"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5" //nolint:blank-imports
-	_ "github.com/golang-migrate/migrate/v4/source/file"     //nolint:blank-imports
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -26,13 +27,18 @@ func InitDB(ctx context.Context, dbConfig *db.PostgresConfig) (*pgxpool.Pool, er
 }
 
 func RunMigrations(connString string) error {
+	migrationsFolder, err := iofs.New(migrations.FS, ".")
+	if err != nil {
+		return err
+	}
+
 	u, parseErr := url.Parse(connString)
 	if parseErr != nil {
 		return parseErr
 	}
 	u.Scheme = "pgx5"
 	dsn := u.String()
-	migration, migrationErr := migrate.New("file://./migrations", dsn)
+	migration, migrationErr := migrate.NewWithSourceInstance("iofs", migrationsFolder, dsn)
 	if migrationErr != nil {
 		return migrationErr
 	}

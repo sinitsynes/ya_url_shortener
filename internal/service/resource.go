@@ -88,7 +88,7 @@ func (s *Controller) CreateBatch(
 			resources[i] = model.Resource{
 				OriginalURL:   item.OriginalURL,
 				ShortURL:      encoder.EncodeURL(item.OriginalURL, salt),
-				CorrelationID: item.CorrelationID,
+				CorrelationID: &item.CorrelationID,
 			}
 		}
 		created, err := s.store.CreateBatch(ctx, resources)
@@ -98,7 +98,7 @@ func (s *Controller) CreateBatch(
 		out := make([]model.ResourceBatchOutput, len(created))
 		for i, item := range created {
 			out[i] = model.ResourceBatchOutput{
-				CorrelationID: item.CorrelationID,
+				CorrelationID: *item.CorrelationID,
 				ShortURL:      s.baseURL + "/" + item.ShortURL,
 			}
 		}
