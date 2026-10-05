@@ -18,7 +18,7 @@ type batch struct {
 }
 
 func strPtr(s string) *string {
-	return &s
+	return &(s)
 }
 
 func newTestStore(t *testing.T) (*inmemory.Store, *filestorage.FileStorage, string) {

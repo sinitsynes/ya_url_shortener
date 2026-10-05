@@ -96,12 +96,11 @@ func (pg *Store) CreateBatch(ctx context.Context, resources []model.Resource) ([
 	items, err := pg.queries.CreateBatch(ctx, params)
 	if err != nil {
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
-			if pgErr.Code == pgerrcode.UniqueViolation {
-				if pgErr.ConstraintName == "resource_original_url_key" {
-					return nil, repository.ErrOriginalURLExists(pgErr.Message)
-				}
-				return nil, repository.ErrConflict
+			if pgErr.Code == pgerrcode.UniqueViolation &&
+				pgErr.ConstraintName == "resource_original_url_key" {
+				return nil, repository.ErrOriginalURLExists(pgErr.Message)
 			}
+			return nil, repository.ErrConflict
 		}
 		return nil, err
 	}
