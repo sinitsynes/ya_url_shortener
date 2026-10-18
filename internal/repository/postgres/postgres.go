@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"uuid"
 
 	"ya_url_shortener/internal/model"
 	"ya_url_shortener/internal/repository"
@@ -29,7 +30,9 @@ func NewStore(pool *pgxpool.Pool) *Store {
 func (pg *Store) CreateResource(ctx context.Context, r model.Resource) (model.Resource, error) {
 	createParams := storage.CreateResourceParams{
 		OriginalUrl: r.OriginalURL,
-		ShortUrl:    r.ShortURL}
+		ShortUrl:    r.ShortURL,
+		UserID:      r.UserID,
+	}
 	created, err := pg.queries.CreateResource(ctx, createParams)
 	if err != nil {
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
@@ -45,6 +48,7 @@ func (pg *Store) CreateResource(ctx context.Context, r model.Resource) (model.Re
 		OriginalURL: created.OriginalUrl,
 		ShortURL:    created.ShortUrl,
 		ID:          created.ID,
+		UserID:      created.UserID,
 	}, nil
 }
 
@@ -92,6 +96,7 @@ func (pg *Store) CreateBatch(ctx context.Context, resources []model.Resource) ([
 		params.OriginalUrls = append(params.OriginalUrls, r.OriginalURL)
 		params.ShortUrls = append(params.ShortUrls, r.ShortURL)
 		params.CorrelationIds = append(params.CorrelationIds, *r.CorrelationID)
+		params.UserIds = append(params.UserIds, *r.UserID)
 	}
 	items, err := pg.queries.CreateBatch(ctx, params)
 	if err != nil {
@@ -112,6 +117,25 @@ func (pg *Store) CreateBatch(ctx context.Context, resources []model.Resource) ([
 			ShortURL:      item.ShortUrl,
 			CorrelationID: item.CorrelationID,
 		}
+	}
+	return out, nil
+}
+
+func (pg *Store) GetResourcesByUserID(ctx context.Context, userID *uuid.UUID) ([]model.Resource, error) {
+	resources, err := pg.queries.GetResourcesByUserID(ctx, userID)
+	if err != nil {
+		return []model.Resource{}, err
+	}
+	out := make([]model.Resource, len(resources))
+	for i, item := range resources {
+		out[i] = model.Resource{
+			ID:            item.ID,
+			OriginalURL:   item.OriginalUrl,
+			ShortURL:      item.ShortUrl,
+			CorrelationID: item.CorrelationID,
+			UserID:        item.UserID,
+		}
+
 	}
 	return out, nil
 }

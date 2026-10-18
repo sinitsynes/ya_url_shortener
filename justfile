@@ -17,11 +17,19 @@ test:
 sqlc-generate:
     go tool sqlc generate
 
+migrate := "migrate -database \"$DATABASE_DSN\" -path migrations"
+
 create_migration name:
-    go tool migrate create -ext sql -dir migrations -seq {{name}}
+    migrate create -ext sql -dir migrations -seq {{name}}
+
+migration_status:
+    {{migrate}} version
 
 migrate_up:
-    migrate -database "postgres://postgres:postgres@localhost:5432/shortener?sslmode=disable" -path migrations up
+    {{migrate}} up
 
-migrate_down:
-    migrate -database "postgres://postgres:postgres@localhost:5432/shortener?sslmode=disable" -path migrations down
+force_migrate_up version:
+    {{migrate}} force {{version}}
+
+migrate_down version:
+    {{migrate}} down {{version}}

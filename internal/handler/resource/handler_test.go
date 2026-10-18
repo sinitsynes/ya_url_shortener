@@ -9,8 +9,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"uuid"
 
 	"ya_url_shortener/internal/config"
+	"ya_url_shortener/internal/handler"
 	"ya_url_shortener/internal/handler/resource"
 	"ya_url_shortener/internal/model"
 
@@ -22,6 +24,7 @@ type (
 	wantCreateURL struct {
 		responseCode    int
 		input           []byte
+		userID          *uuid.UUID
 		baseURL         string
 		responsePattern []byte
 		contentType     string
@@ -29,6 +32,7 @@ type (
 	wantGetURL struct {
 		responseCode int
 		input        int32
+		userID       *uuid.UUID
 		response     string
 	}
 	wantShortenURL struct {
@@ -40,20 +44,29 @@ type (
 	}
 	wantCreateBatch struct {
 		responseCode int
+		userID       *uuid.UUID
 		input        []model.ResourceBatchInput
 		inputHeader  string
 		response     []model.ResourceBatchOutput
 		contentType  string
 	}
+	wantURLbyUser struct {
+		responseCode int
+		userID       *uuid.UUID
+		input        []model.Resource
+		response     []model.ResourcesByUser
+		contentType  string
+	}
 	stubController struct {
-		createFn      func(context.Context, string) (model.Resource, error)
-		getFn         func(context.Context, string) (model.Resource, error)
-		createBatchFn func(context.Context, []model.ResourceBatchInput) ([]model.ResourceBatchOutput, error)
+		createFn             func(context.Context, string, *uuid.UUID) (model.Resource, error)
+		getFn                func(context.Context, string) (model.Resource, error)
+		createBatchFn        func(context.Context, []model.ResourceBatchInput, *uuid.UUID) ([]model.ResourceBatchOutput, error)
+		getResourcesByUserFn func(context.Context, *uuid.UUID) ([]model.ResourcesByUser, error)
 	}
 )
 
-func (c stubController) CreateResource(ctx context.Context, url string) (model.Resource, error) {
-	return c.createFn(ctx, url)
+func (c stubController) CreateResource(ctx context.Context, url string, userID *uuid.UUID) (model.Resource, error) {
+	return c.createFn(ctx, url, userID)
 }
 func (c stubController) GetResource(ctx context.Context, short string) (model.Resource, error) {
 	return c.getFn(ctx, short)
@@ -62,8 +75,16 @@ func (c stubController) GetResource(ctx context.Context, short string) (model.Re
 func (c stubController) CreateBatch(
 	ctx context.Context,
 	input []model.ResourceBatchInput,
+	userID *uuid.UUID,
 ) ([]model.ResourceBatchOutput, error) {
-	return c.createBatchFn(ctx, input)
+	return c.createBatchFn(ctx, input, userID)
+}
+
+func (c stubController) GetResourcesByUser(
+	ctx context.Context,
+	userID *uuid.UUID,
+) ([]model.ResourcesByUser, error) {
+	return c.getResourcesByUserFn(ctx, userID)
 }
 
 func testAppConfig() *config.Config {
@@ -79,13 +100,13 @@ func setupController(t *testing.T) resource.Controller {
 	cfg := testAppConfig()
 
 	ctrl := stubController{
-		createFn: func(_ context.Context, url string) (model.Resource, error) {
-			return model.Resource{ID: 1, OriginalURL: url, ShortURL: cfg.BaseURL + "/6bdb5b0"}, nil
+		createFn: func(_ context.Context, url string, userID *uuid.UUID) (model.Resource, error) {
+			return model.Resource{ID: 1, OriginalURL: url, ShortURL: cfg.BaseURL + "/6bdb5b0", UserID: userID}, nil
 		},
 		getFn: func(_ context.Context, short string) (model.Resource, error) {
 			return model.Resource{ID: 1, OriginalURL: "https://practicum.yandex.ru/", ShortURL: short}, nil
 		},
-		createBatchFn: func(_ context.Context, input []model.ResourceBatchInput) ([]model.ResourceBatchOutput, error) {
+		createBatchFn: func(_ context.Context, input []model.ResourceBatchInput, userID *uuid.UUID) ([]model.ResourceBatchOutput, error) {
 			out := make([]model.ResourceBatchOutput, 0, len(input))
 			for _, item := range input {
 				out = append(out, model.ResourceBatchOutput{
@@ -94,6 +115,13 @@ func setupController(t *testing.T) resource.Controller {
 				})
 			}
 			return out, nil
+		},
+		getResourcesByUserFn: func(_ context.Context, userID *uuid.UUID) ([]model.ResourcesByUser, error) {
+			return []model.ResourcesByUser{
+				{
+					OriginalURL: "https://practicum.yandex.ru/",
+					ShortURL:    cfg.BaseURL + "/6bdb5b0"},
+			}, nil
 		},
 	}
 	return ctrl
@@ -109,6 +137,8 @@ func setupHandler(t *testing.T, controller resource.Controller) resource.Resourc
 func TestCreateURL(t *testing.T) {
 	t.Parallel()
 	cfg := testAppConfig()
+	goodUser := uuid.New()
+
 	tests := []struct {
 		name string
 		want wantCreateURL
@@ -118,6 +148,7 @@ func TestCreateURL(t *testing.T) {
 			want: wantCreateURL{
 				responseCode:    http.StatusCreated,
 				input:           []byte("https://practicum.yandex.ru/"),
+				userID:          &goodUser,
 				baseURL:         cfg.BaseURL,
 				responsePattern: []byte(cfg.BaseURL + "/6bdb5b0"),
 				contentType:     resource.ContentTypePlainText,
@@ -149,6 +180,7 @@ func TestCreateURL(t *testing.T) {
 
 func TestGetURL(t *testing.T) {
 	t.Parallel()
+	goodUser := uuid.New()
 	tests := []struct {
 		name string
 		want wantGetURL
@@ -158,6 +190,7 @@ func TestGetURL(t *testing.T) {
 			want: wantGetURL{
 				responseCode: http.StatusTemporaryRedirect,
 				input:        1,
+				userID:       &goodUser,
 				response:     "https://practicum.yandex.ru/",
 			},
 		},
@@ -168,7 +201,7 @@ func TestGetURL(t *testing.T) {
 			controller := setupController(t)
 			h := setupHandler(t, controller)
 
-			created, createdErr := controller.CreateResource(t.Context(), test.want.response)
+			created, createdErr := controller.CreateResource(t.Context(), test.want.response, &goodUser)
 			require.NoError(t, createdErr)
 
 			request := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -226,6 +259,7 @@ func TestShortenURL(t *testing.T) {
 func TestCreateBatch(t *testing.T) {
 	t.Parallel()
 	cfg := testAppConfig()
+	goodUser := uuid.New()
 	tests := []struct {
 		name string
 		want wantCreateBatch
@@ -244,6 +278,7 @@ func TestCreateBatch(t *testing.T) {
 						OriginalURL:   "https://yandex.ru",
 					},
 				},
+				userID:      &goodUser,
 				inputHeader: resource.ContentTypeJSON,
 				response: []model.ResourceBatchOutput{
 					{
@@ -277,6 +312,61 @@ func TestCreateBatch(t *testing.T) {
 			got := json.Unmarshal(body, &items)
 			require.NoError(t, got)
 			defer res.Body.Close()
+
+			assert.Equal(t, test.want.responseCode, res.StatusCode)
+			assert.Equal(t, test.want.contentType, res.Header.Get(resource.ContentTypeHeader))
+			assert.ElementsMatch(t, test.want.response, items)
+		})
+	}
+}
+
+func TestGetResourcesByUser(t *testing.T) {
+	t.Parallel()
+	cfg := testAppConfig()
+	goodUser := uuid.New()
+	tests := []struct {
+		name string
+		want wantURLbyUser
+	}{
+		{
+			name: "happy GetResourcesByUser #1",
+			want: wantURLbyUser{
+				responseCode: http.StatusOK,
+				userID:       &goodUser,
+				input: []model.Resource{
+					{
+						ID:          1,
+						OriginalURL: "https://practicum.yandex.ru/",
+						ShortURL:    cfg.BaseURL + "/6bdb5b0",
+						UserID:      &goodUser,
+					},
+				},
+				response: []model.ResourcesByUser{
+					{
+						OriginalURL: "https://practicum.yandex.ru/",
+						ShortURL:    cfg.BaseURL + "/6bdb5b0",
+					},
+				},
+				contentType: resource.ContentTypeJSON,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			controller := setupController(t)
+			h := setupHandler(t, controller)
+			request := httptest.NewRequest(http.MethodGet, "/api/user/urls", nil)
+			request = request.WithContext(context.WithValue(request.Context(), handler.UserIDKey, *test.want.userID))
+			writer := httptest.NewRecorder()
+			h.GetResourcesByUser(writer, request)
+			res := writer.Result()
+			defer res.Body.Close()
+
+			items := []model.ResourcesByUser{}
+			body, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+			require.NoError(t, json.Unmarshal(body, &items))
 
 			assert.Equal(t, test.want.responseCode, res.StatusCode)
 			assert.Equal(t, test.want.contentType, res.Header.Get(resource.ContentTypeHeader))

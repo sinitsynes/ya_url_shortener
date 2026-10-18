@@ -4,9 +4,14 @@
 
 package postgres
 
+import (
+	"uuid"
+)
+
 type Resource struct {
 	ID            int32
 	OriginalUrl   string
 	ShortUrl      string
 	CorrelationID *string
+	UserID        *uuid.UUID
 }

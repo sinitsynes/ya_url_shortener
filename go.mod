@@ -1,6 +1,6 @@
 module ya_url_shortener
 
-go 1.26.7
+go 1.27.2
 
 require (
 	github.com/caarlos0/env/v11 v11.4.1

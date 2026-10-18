@@ -11,6 +11,7 @@ type ResourceHandler interface { //nolint: revive
 	GetURL(w http.ResponseWriter, r *http.Request)
 	ShortenURL(w http.ResponseWriter, r *http.Request)
 	CreateBatch(w http.ResponseWriter, r *http.Request)
+	GetResourcesByUser(w http.ResponseWriter, r *http.Request)
 }
 
 func RegisterRoutes(r chi.Router, handler ResourceHandler) {
@@ -18,4 +19,5 @@ func RegisterRoutes(r chi.Router, handler ResourceHandler) {
 	r.Get("/{url}", handler.GetURL)
 	r.Post("/api/shorten", handler.ShortenURL)
 	r.Post("/api/shorten/batch", handler.CreateBatch)
+	r.Get("/api/user/urls", handler.GetResourcesByUser)
 }

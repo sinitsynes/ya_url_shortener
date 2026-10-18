@@ -8,7 +8,9 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"uuid"
 
+	"ya_url_shortener/internal/handler"
 	"ya_url_shortener/internal/model"
 	"ya_url_shortener/internal/repository"
 	"ya_url_shortener/internal/service"
@@ -22,9 +24,10 @@ const (
 )
 
 type Controller interface {
-	CreateResource(ctx context.Context, url string) (model.Resource, error)
+	CreateResource(ctx context.Context, url string, userID *uuid.UUID) (model.Resource, error)
 	GetResource(ctx context.Context, shortenedURL string) (model.Resource, error)
-	CreateBatch(ctx context.Context, resources []model.ResourceBatchInput) ([]model.ResourceBatchOutput, error)
+	CreateBatch(ctx context.Context, resources []model.ResourceBatchInput, userID *uuid.UUID) ([]model.ResourceBatchOutput, error)
+	GetResourcesByUser(ctx context.Context, userID *uuid.UUID) ([]model.ResourcesByUser, error)
 }
 
 type Handler struct {
@@ -46,6 +49,7 @@ func (h *Handler) CreateURL(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	httpStatus := http.StatusCreated
 	bodyBytes, err := io.ReadAll(r.Body)
+
 	if err != nil {
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			http.Error(w, "Превышен максимальный размер запроса", http.StatusRequestEntityTooLarge)
@@ -55,7 +59,8 @@ func (h *Handler) CreateURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	bodyString := string(bodyBytes)
-	resource, err := h.controller.CreateResource(ctx, bodyString)
+	userID, _ := ctx.Value(handler.UserIDKey).(uuid.UUID) //nolint:errcheck // проверка идентификатора проходит в middleware
+	resource, err := h.controller.CreateResource(ctx, bodyString, &userID)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrMaxRetriesExceeded):
@@ -72,6 +77,11 @@ func (h *Handler) CreateURL(w http.ResponseWriter, r *http.Request) {
 	}
 	resp := resource.ShortURL
 	w.Header().Set(ContentTypeHeader, ContentTypePlainText)
+	authCookie := http.Cookie{
+		Name:  handler.UserIDKey,
+		Value: userID.String(),
+	}
+	http.SetCookie(w, &authCookie)
 	w.WriteHeader(httpStatus)
 	w.Write([]byte(resp)) //nolint: errcheck,gosec
 }
@@ -114,7 +124,8 @@ func (h *Handler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	resource, err := h.controller.CreateResource(ctx, input.URL)
+	userID, _ := ctx.Value(handler.UserIDKey).(uuid.UUID) //nolint:errcheck // проверка идентификатора проходит в middleware
+	resource, err := h.controller.CreateResource(ctx, input.URL, &userID)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrMaxRetriesExceeded):
@@ -138,6 +149,11 @@ func (h *Handler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set(ContentTypeHeader, ContentTypeJSON)
 	w.Header().Set(ContentLengthHeader, strconv.Itoa(len(resp)))
+	authCookie := http.Cookie{
+		Name:  handler.UserIDKey,
+		Value: userID.String(),
+	}
+	http.SetCookie(w, &authCookie)
 	w.WriteHeader(httpStatus)
 	w.Write(resp) //nolint: errcheck,gosec
 }
@@ -164,7 +180,8 @@ func (h *Handler) CreateBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	created, err := h.controller.CreateBatch(ctx, input)
+	userID, _ := ctx.Value(handler.UserIDKey).(uuid.UUID) //nolint:errcheck // проверка идентификатора проходит в middleware
+	created, err := h.controller.CreateBatch(ctx, input, &userID)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrMaxRetriesExceeded):
@@ -186,6 +203,39 @@ func (h *Handler) CreateBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set(ContentTypeHeader, ContentTypeJSON)
+	authCookie := http.Cookie{
+		Name:  handler.UserIDKey,
+		Value: userID.String(),
+	}
+	http.SetCookie(w, &authCookie)
 	w.WriteHeader(http.StatusCreated)
+	w.Write(res) //nolint: errcheck,gosec
+}
+
+func (h *Handler) GetResourcesByUser(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	responseStatus := http.StatusOK
+	userID, _ := ctx.Value(handler.UserIDKey).(uuid.UUID) //nolint:errcheck // проверка идентификатора проходит в middleware
+	resources, err := h.controller.GetResourcesByUser(ctx, &userID)
+	h.logger.DebugContext(r.Context(), "DEBUG COOKIE", "userID", userID)
+	if err != nil {
+		http.Error(w, "Ошибка получения ресурсов", http.StatusInternalServerError)
+		return
+	}
+	if len(resources) == 0 {
+		responseStatus = http.StatusNoContent
+	}
+	res, err := json.Marshal(resources)
+	if err != nil {
+		http.Error(w, "Ошибка сериализации ответа", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set(ContentTypeHeader, ContentTypeJSON)
+	authCookie := http.Cookie{
+		Name:  handler.UserIDKey,
+		Value: userID.String(),
+	}
+	http.SetCookie(w, &authCookie)
+	w.WriteHeader(responseStatus)
 	w.Write(res) //nolint: errcheck,gosec
 }

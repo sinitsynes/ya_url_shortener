@@ -1,27 +1,33 @@
 -- name: CreateResource :one
-INSERT INTO resource (original_url, short_url)
-VALUES ($1, $2)
-RETURNING id, original_url, short_url, correlation_id;
+INSERT INTO resource (original_url, short_url, user_id)
+VALUES (@original_url, @short_url, @user_id)
+RETURNING id, original_url, short_url, correlation_id, user_id;
 
 -- name: CreateBatch :many
-INSERT INTO resource (original_url, short_url, correlation_id)
+INSERT INTO resource (original_url, short_url, correlation_id, user_id)
 SELECT
     UNNEST(@original_urls::TEXT[]),
     UNNEST(@short_urls::TEXT[]),
-    UNNEST(@correlation_ids::TEXT[])
-RETURNING id, original_url, short_url, correlation_id;
+    UNNEST(@correlation_ids::TEXT[]),
+    UNNEST(@user_ids::UUID[])
+RETURNING id, original_url, short_url, correlation_id, user_id;
 
 -- name: GetResourceByID :one
-SELECT *
+SELECT id, original_url, short_url, correlation_id, user_id
 FROM resource
 WHERE id = @id;
 
 -- name: GetResourceByShortURL :one
-SELECT *
+SELECT id, original_url, short_url, correlation_id, user_id
 FROM resource
 WHERE short_url = @short_url;
 
 -- name: GetResourceByOriginalURL :one
-SELECT *
+SELECT id, original_url, short_url, correlation_id, user_id
 FROM resource
 WHERE original_url = @original_url;
+
+-- name: GetResourcesByUserID :many
+SELECT id, original_url, short_url, correlation_id, user_id
+FROM resource
+WHERE user_id = @user_id;

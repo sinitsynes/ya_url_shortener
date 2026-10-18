@@ -7,6 +7,7 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
+	"uuid"
 
 	"ya_url_shortener/internal/model"
 	"ya_url_shortener/internal/repository"
@@ -172,6 +173,19 @@ func (s *Store) CreateBatch(_ context.Context, resources []model.Resource) ([]mo
 		}
 	}
 	return output, nil
+}
+
+func (s *Store) GetResourcesByUserID(ctx context.Context, userID *uuid.UUID) ([]model.Resource, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	out := []model.Resource{}
+	for _, value := range s.store {
+		if value.UserID == userID {
+			out = append(out, value)
+		}
+	}
+	return out, nil
 }
 
 func (s *Store) Close() error {

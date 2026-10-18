@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"uuid"
 
 	"ya_url_shortener/internal/model"
 	"ya_url_shortener/internal/repository"
@@ -18,6 +19,7 @@ type Repository interface {
 	GetResourceByID(context.Context, int32) (model.Resource, error)
 	GetResourceByShortURL(context.Context, string) (model.Resource, error)
 	GetResourceByOriginalURL(context.Context, string) (model.Resource, error)
+	GetResourcesByUserID(context.Context, *uuid.UUID) ([]model.Resource, error)
 	CreateBatch(context.Context, []model.Resource) ([]model.Resource, error)
 	Close() error
 }
@@ -50,37 +52,39 @@ func withConflictRetry[T any](attempt func(salt int32) (T, error)) (T, error) {
 	return zero, ErrMaxRetriesExceeded
 }
 
-func (s *Controller) CreateResource(ctx context.Context, originalURL string) (model.Resource, error) {
-	existing, err := s.store.GetResourceByOriginalURL(ctx, originalURL)
+func (c *Controller) CreateResource(ctx context.Context, originalURL string, userID *uuid.UUID) (model.Resource, error) {
+	existing, err := c.store.GetResourceByOriginalURL(ctx, originalURL)
 	if err == nil {
-		existing.ShortURL = s.baseURL + "/" + existing.ShortURL
+		existing.ShortURL = c.baseURL + "/" + existing.ShortURL
 		return existing, repository.ErrOriginalURLConflict
 	}
 	return withConflictRetry(func(salt int32) (model.Resource, error) {
-		created, createErr := s.store.CreateResource(ctx, model.Resource{
+		created, createErr := c.store.CreateResource(ctx, model.Resource{
 			OriginalURL: originalURL,
 			ShortURL:    encoder.EncodeURL(originalURL, salt),
+			UserID:      userID,
 		})
 		if createErr != nil {
 			return model.Resource{}, createErr
 		}
-		created.ShortURL = s.baseURL + "/" + created.ShortURL
+		created.ShortURL = c.baseURL + "/" + created.ShortURL
 		return created, nil
 	})
 }
 
-func (s *Controller) GetResource(ctx context.Context, shortenedURL string) (model.Resource, error) {
-	r, err := s.store.GetResourceByShortURL(ctx, shortenedURL)
+func (c *Controller) GetResource(ctx context.Context, shortenedURL string) (model.Resource, error) {
+	r, err := c.store.GetResourceByShortURL(ctx, shortenedURL)
 	if err != nil {
 		return model.Resource{}, err
 	}
-	r.ShortURL = s.baseURL + "/" + r.ShortURL
+	r.ShortURL = c.baseURL + "/" + r.ShortURL
 	return r, nil
 }
 
-func (s *Controller) CreateBatch(
+func (c *Controller) CreateBatch(
 	ctx context.Context,
 	batch []model.ResourceBatchInput,
+	userID *uuid.UUID,
 ) ([]model.ResourceBatchOutput, error) {
 	return withConflictRetry(func(salt int32) ([]model.ResourceBatchOutput, error) {
 		resources := make([]model.Resource, len(batch))
@@ -89,9 +93,10 @@ func (s *Controller) CreateBatch(
 				OriginalURL:   item.OriginalURL,
 				ShortURL:      encoder.EncodeURL(item.OriginalURL, salt),
 				CorrelationID: &item.CorrelationID,
+				UserID:        userID,
 			}
 		}
-		created, err := s.store.CreateBatch(ctx, resources)
+		created, err := c.store.CreateBatch(ctx, resources)
 		if err != nil {
 			return nil, err
 		}
@@ -99,9 +104,24 @@ func (s *Controller) CreateBatch(
 		for i, item := range created {
 			out[i] = model.ResourceBatchOutput{
 				CorrelationID: *item.CorrelationID,
-				ShortURL:      s.baseURL + "/" + item.ShortURL,
+				ShortURL:      c.baseURL + "/" + item.ShortURL,
 			}
 		}
 		return out, nil
 	})
+}
+
+func (c *Controller) GetResourcesByUser(ctx context.Context, userID *uuid.UUID) ([]model.ResourcesByUser, error) {
+	resources, err := c.store.GetResourcesByUserID(ctx, userID)
+	out := make([]model.ResourcesByUser, len(resources))
+	if err != nil {
+		return out, err
+	}
+	for i, item := range resources {
+		out[i] = model.ResourcesByUser{
+			OriginalURL: item.OriginalURL,
+			ShortURL:    c.baseURL + "/" + item.ShortURL,
+		}
+	}
+	return out, nil
 }
