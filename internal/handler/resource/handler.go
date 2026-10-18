@@ -63,7 +63,7 @@ func (h *Handler) CreateURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	bodyString := string(bodyBytes)
-	userID, _ := ctx.Value(string(config.UserIDKey)).(uuid.UUID)
+	userID, _ := ctx.Value(config.UserIDKey).(uuid.UUID)
 	resource, err := h.controller.CreateResource(ctx, bodyString, &userID)
 	if err != nil {
 		switch {
@@ -131,7 +131,7 @@ func (h *Handler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	userID, _ := ctx.Value(string(config.UserIDKey)).(uuid.UUID)
+	userID, _ := ctx.Value(config.UserIDKey).(uuid.UUID)
 	resource, err := h.controller.CreateResource(ctx, input.URL, &userID)
 	if err != nil {
 		switch {
@@ -190,7 +190,7 @@ func (h *Handler) CreateBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	userID, _ := ctx.Value(string(config.UserIDKey)).(uuid.UUID)
+	userID, _ := ctx.Value(config.UserIDKey).(uuid.UUID)
 	created, err := h.controller.CreateBatch(ctx, input, &userID)
 	if err != nil {
 		switch {
@@ -228,7 +228,7 @@ func (h *Handler) CreateBatch(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetResourcesByUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	responseStatus := http.StatusOK
-	userID, _ := ctx.Value(string(config.UserIDKey)).(uuid.UUID)
+	userID, _ := ctx.Value(config.UserIDKey).(uuid.UUID)
 	resources, err := h.controller.GetResourcesByUser(ctx, &userID)
 	h.logger.DebugContext(r.Context(), "DEBUG COOKIE", "userID", userID)
 	if err != nil {
