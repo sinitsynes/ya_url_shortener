@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"time"
 
+	"ya_url_shortener/internal/config"
 	ya_middleware "ya_url_shortener/internal/middleware"
 
 	"github.com/go-chi/chi/v5"
@@ -13,7 +14,6 @@ import (
 const (
 	maxRequestSize int64         = 20 * (1 << 10) //nolint: mnd // 20KB
 	requestTimeout time.Duration = 3 * time.Second
-	UserIDKey      string        = "userId"
 )
 
 func NewRouter(logger *slog.Logger, register ...func(chi.Router)) *chi.Mux {
@@ -24,7 +24,7 @@ func NewRouter(logger *slog.Logger, register ...func(chi.Router)) *chi.Mux {
 	r.Use(ya_middleware.GzipDecompressor)
 	r.Use(ya_middleware.GzipCompressor)
 	r.Use(ya_middleware.LimitMaxRequestSize(maxRequestSize))
-	r.Use(ya_middleware.CookieAuth(UserIDKey, logger))
+	r.Use(ya_middleware.CookieAuth(config.UserIDKey, logger))
 
 	for _, fn := range register {
 		fn(r)

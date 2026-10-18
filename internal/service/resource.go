@@ -52,7 +52,11 @@ func withConflictRetry[T any](attempt func(salt int32) (T, error)) (T, error) {
 	return zero, ErrMaxRetriesExceeded
 }
 
-func (c *Controller) CreateResource(ctx context.Context, originalURL string, userID *uuid.UUID) (model.Resource, error) {
+func (c *Controller) CreateResource(
+	ctx context.Context,
+	originalURL string,
+	userID *uuid.UUID,
+) (model.Resource, error) {
 	existing, err := c.store.GetResourceByOriginalURL(ctx, originalURL)
 	if err == nil {
 		existing.ShortURL = c.baseURL + "/" + existing.ShortURL

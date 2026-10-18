@@ -135,7 +135,6 @@ func (pg *Store) GetResourcesByUserID(ctx context.Context, userID *uuid.UUID) ([
 			CorrelationID: item.CorrelationID,
 			UserID:        item.UserID,
 		}
-
 	}
 	return out, nil
 }

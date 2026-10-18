@@ -12,7 +12,6 @@ import (
 	"uuid"
 
 	"ya_url_shortener/internal/config"
-	"ya_url_shortener/internal/handler"
 	"ya_url_shortener/internal/handler/resource"
 	"ya_url_shortener/internal/model"
 
@@ -106,7 +105,7 @@ func setupController(t *testing.T) resource.Controller {
 		getFn: func(_ context.Context, short string) (model.Resource, error) {
 			return model.Resource{ID: 1, OriginalURL: "https://practicum.yandex.ru/", ShortURL: short}, nil
 		},
-		createBatchFn: func(_ context.Context, input []model.ResourceBatchInput, userID *uuid.UUID) ([]model.ResourceBatchOutput, error) {
+		createBatchFn: func(_ context.Context, input []model.ResourceBatchInput, _ *uuid.UUID) ([]model.ResourceBatchOutput, error) {
 			out := make([]model.ResourceBatchOutput, 0, len(input))
 			for _, item := range input {
 				out = append(out, model.ResourceBatchOutput{
@@ -116,7 +115,7 @@ func setupController(t *testing.T) resource.Controller {
 			}
 			return out, nil
 		},
-		getResourcesByUserFn: func(_ context.Context, userID *uuid.UUID) ([]model.ResourcesByUser, error) {
+		getResourcesByUserFn: func(_ context.Context, _ *uuid.UUID) ([]model.ResourcesByUser, error) {
 			return []model.ResourcesByUser{
 				{
 					OriginalURL: "https://practicum.yandex.ru/",
@@ -357,7 +356,7 @@ func TestGetResourcesByUser(t *testing.T) {
 			controller := setupController(t)
 			h := setupHandler(t, controller)
 			request := httptest.NewRequest(http.MethodGet, "/api/user/urls", nil)
-			request = request.WithContext(context.WithValue(request.Context(), handler.UserIDKey, *test.want.userID))
+			request = request.WithContext(context.WithValue(request.Context(), config.UserIDKey, *test.want.userID))
 			writer := httptest.NewRecorder()
 			h.GetResourcesByUser(writer, request)
 			res := writer.Result()

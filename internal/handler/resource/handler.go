@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"uuid"
 
-	"ya_url_shortener/internal/handler"
+	"ya_url_shortener/internal/config"
 	"ya_url_shortener/internal/model"
 	"ya_url_shortener/internal/repository"
 	"ya_url_shortener/internal/service"
@@ -26,7 +26,11 @@ const (
 type Controller interface {
 	CreateResource(ctx context.Context, url string, userID *uuid.UUID) (model.Resource, error)
 	GetResource(ctx context.Context, shortenedURL string) (model.Resource, error)
-	CreateBatch(ctx context.Context, resources []model.ResourceBatchInput, userID *uuid.UUID) ([]model.ResourceBatchOutput, error)
+	CreateBatch(
+		ctx context.Context,
+		resources []model.ResourceBatchInput,
+		userID *uuid.UUID,
+	) ([]model.ResourceBatchOutput, error)
 	GetResourcesByUser(ctx context.Context, userID *uuid.UUID) ([]model.ResourcesByUser, error)
 }
 
@@ -59,7 +63,7 @@ func (h *Handler) CreateURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	bodyString := string(bodyBytes)
-	userID, _ := ctx.Value(handler.UserIDKey).(uuid.UUID) //nolint:errcheck // проверка идентификатора проходит в middleware
+	userID, _ := ctx.Value(string(config.UserIDKey)).(uuid.UUID)
 	resource, err := h.controller.CreateResource(ctx, bodyString, &userID)
 	if err != nil {
 		switch {
@@ -77,9 +81,12 @@ func (h *Handler) CreateURL(w http.ResponseWriter, r *http.Request) {
 	}
 	resp := resource.ShortURL
 	w.Header().Set(ContentTypeHeader, ContentTypePlainText)
-	authCookie := http.Cookie{
-		Name:  handler.UserIDKey,
-		Value: userID.String(),
+	authCookie := http.Cookie{ //nolint:gosec
+		Name:     string(config.UserIDKey),
+		Value:    userID.String(),
+		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteLaxMode,
 	}
 	http.SetCookie(w, &authCookie)
 	w.WriteHeader(httpStatus)
@@ -124,7 +131,7 @@ func (h *Handler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	userID, _ := ctx.Value(handler.UserIDKey).(uuid.UUID) //nolint:errcheck // проверка идентификатора проходит в middleware
+	userID, _ := ctx.Value(string(config.UserIDKey)).(uuid.UUID)
 	resource, err := h.controller.CreateResource(ctx, input.URL, &userID)
 	if err != nil {
 		switch {
@@ -149,9 +156,12 @@ func (h *Handler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set(ContentTypeHeader, ContentTypeJSON)
 	w.Header().Set(ContentLengthHeader, strconv.Itoa(len(resp)))
-	authCookie := http.Cookie{
-		Name:  handler.UserIDKey,
-		Value: userID.String(),
+	authCookie := http.Cookie{ //nolint:gosec
+		Name:     string(config.UserIDKey),
+		Value:    userID.String(),
+		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteLaxMode,
 	}
 	http.SetCookie(w, &authCookie)
 	w.WriteHeader(httpStatus)
@@ -180,7 +190,7 @@ func (h *Handler) CreateBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	userID, _ := ctx.Value(handler.UserIDKey).(uuid.UUID) //nolint:errcheck // проверка идентификатора проходит в middleware
+	userID, _ := ctx.Value(string(config.UserIDKey)).(uuid.UUID)
 	created, err := h.controller.CreateBatch(ctx, input, &userID)
 	if err != nil {
 		switch {
@@ -203,9 +213,12 @@ func (h *Handler) CreateBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set(ContentTypeHeader, ContentTypeJSON)
-	authCookie := http.Cookie{
-		Name:  handler.UserIDKey,
-		Value: userID.String(),
+	authCookie := http.Cookie{ //nolint:gosec
+		Name:     string(config.UserIDKey),
+		Value:    userID.String(),
+		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteLaxMode,
 	}
 	http.SetCookie(w, &authCookie)
 	w.WriteHeader(http.StatusCreated)
@@ -215,7 +228,7 @@ func (h *Handler) CreateBatch(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetResourcesByUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	responseStatus := http.StatusOK
-	userID, _ := ctx.Value(handler.UserIDKey).(uuid.UUID) //nolint:errcheck // проверка идентификатора проходит в middleware
+	userID, _ := ctx.Value(string(config.UserIDKey)).(uuid.UUID)
 	resources, err := h.controller.GetResourcesByUser(ctx, &userID)
 	h.logger.DebugContext(r.Context(), "DEBUG COOKIE", "userID", userID)
 	if err != nil {
@@ -231,9 +244,12 @@ func (h *Handler) GetResourcesByUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set(ContentTypeHeader, ContentTypeJSON)
-	authCookie := http.Cookie{
-		Name:  handler.UserIDKey,
-		Value: userID.String(),
+	authCookie := http.Cookie{ //nolint:gosec
+		Name:     string(config.UserIDKey),
+		Value:    userID.String(),
+		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteLaxMode,
 	}
 	http.SetCookie(w, &authCookie)
 	w.WriteHeader(responseStatus)

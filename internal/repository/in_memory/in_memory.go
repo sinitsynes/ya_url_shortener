@@ -32,10 +32,8 @@ type (
 
 func NewStore(fileStorage *fs.FileStorage) (*Store, error) {
 	s := &Store{
-		inMemoryStorage: inMemoryStorage{
-			store:  make(memoryStorage),
-			lookup: make(lookupStorage),
-		}}
+		store:  make(memoryStorage),
+		lookup: make(lookupStorage)}
 
 	if fileStorage != nil {
 		s.fileStorage = fileStorage
@@ -175,7 +173,7 @@ func (s *Store) CreateBatch(_ context.Context, resources []model.Resource) ([]mo
 	return output, nil
 }
 
-func (s *Store) GetResourcesByUserID(ctx context.Context, userID *uuid.UUID) ([]model.Resource, error) {
+func (s *Store) GetResourcesByUserID(_ context.Context, userID *uuid.UUID) ([]model.Resource, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
