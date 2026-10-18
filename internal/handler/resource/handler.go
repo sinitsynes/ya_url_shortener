@@ -230,7 +230,6 @@ func (h *Handler) GetResourcesByUser(w http.ResponseWriter, r *http.Request) {
 	responseStatus := http.StatusOK
 	userID, _ := ctx.Value(config.UserIDKey).(uuid.UUID)
 	resources, err := h.controller.GetResourcesByUser(ctx, &userID)
-	h.logger.DebugContext(r.Context(), "DEBUG COOKIE", "userID", userID)
 	if err != nil {
 		http.Error(w, "Ошибка получения ресурсов", http.StatusInternalServerError)
 		return
