@@ -1,0 +1,27 @@
+version: "2"
+overrides:
+  go:
+    overrides:
+    - db_type: "uuid"
+      nullable: true
+      engine: "postgresql"
+      go_type:
+        import: "uuid"
+        type: "UUID"
+        pointer: true
+    - db_type: "uuid"
+      nullable: false
+      engine: "postgresql"
+      go_type:
+        import: "uuid"
+        type: "UUID"
+sql:
+  - engine: "postgresql"
+    queries: "internal/repository/postgres/queries.sql"
+    schema: "migrations"
+    gen:
+      go:
+        package: "postgres"
+        out: "internal/repository/postgres/sqlc"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
