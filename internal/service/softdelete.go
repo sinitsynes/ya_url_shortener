@@ -31,8 +31,6 @@ func fanIn(ctx context.Context, deleteCh []chan toDelete) chan toDelete {
 	for _, ch := range deleteCh {
 		chClosure := ch
 		wg.Go(func() {
-			defer wg.Done()
-
 			for data := range chClosure {
 				select {
 				case <-ctx.Done():
