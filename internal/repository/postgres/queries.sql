@@ -18,7 +18,7 @@ FROM resource
 WHERE id = @id;
 
 -- name: GetResourceByShortURL :one
-SELECT id, original_url, short_url, correlation_id, user_id
+SELECT id, original_url, short_url, correlation_id, user_id, is_deleted
 FROM resource
 WHERE short_url = @short_url;
 

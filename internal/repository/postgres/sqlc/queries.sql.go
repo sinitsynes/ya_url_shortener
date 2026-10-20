@@ -155,28 +155,21 @@ func (q *Queries) GetResourceByOriginalURL(ctx context.Context, originalUrl stri
 }
 
 const getResourceByShortURL = `-- name: GetResourceByShortURL :one
-SELECT id, original_url, short_url, correlation_id, user_id
+SELECT id, original_url, short_url, correlation_id, user_id, is_deleted
 FROM resource
 WHERE short_url = $1
 `
 
-type GetResourceByShortURLRow struct {
-	ID            int32
-	OriginalUrl   string
-	ShortUrl      string
-	CorrelationID *string
-	UserID        *uuid.UUID
-}
-
-func (q *Queries) GetResourceByShortURL(ctx context.Context, shortUrl string) (GetResourceByShortURLRow, error) {
+func (q *Queries) GetResourceByShortURL(ctx context.Context, shortUrl string) (Resource, error) {
 	row := q.db.QueryRow(ctx, getResourceByShortURL, shortUrl)
-	var i GetResourceByShortURLRow
+	var i Resource
 	err := row.Scan(
 		&i.ID,
 		&i.OriginalUrl,
 		&i.ShortUrl,
 		&i.CorrelationID,
 		&i.UserID,
+		&i.IsDeleted,
 	)
 	return i, err
 }
@@ -224,7 +217,8 @@ func (q *Queries) GetResourcesByUserID(ctx context.Context, userID *uuid.UUID) (
 const softDeleteResources = `-- name: SoftDeleteResources :exec
 UPDATE resource
 SET is_deleted = TRUE
-WHERE user_id = $1 AND short_url = ANY($2::TEXT[])
+WHERE user_id = $1
+  AND short_url = ANY($2::TEXT[])
 `
 
 type SoftDeleteResourcesParams struct {

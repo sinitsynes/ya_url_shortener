@@ -14,8 +14,6 @@ import (
 	"ya_url_shortener/internal/model"
 	"ya_url_shortener/internal/repository"
 	"ya_url_shortener/internal/service"
-
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -280,15 +278,10 @@ func (h *Handler) DeleteResources(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Ошибка декодирования запроса", http.StatusBadRequest)
 		return
 	}
-	detachedContext := context.Background()
-	var errgroup errgroup.Group
-	errgroup.Go(func() error {
-		return h.controller.DeleteResources(detachedContext, &userID, shortURLs)
-	})
-	if repoErr := errgroup.Wait(); repoErr != nil {
-		h.logger.ErrorContext(detachedContext, "DeleteResourcesErr", "err", repoErr)
-		http.Error(w, "Ошибка удаления ресурсов", http.StatusInternalServerError)
-		return
-	}
+	go func(uid uuid.UUID, urls []string) { //nolint: gosec // используем отдельный контекст, несвязанный с запросом
+		if repoErr := h.controller.DeleteResources(context.Background(), &uid, urls); repoErr != nil {
+			h.logger.ErrorContext(r.Context(), "DeleteResourcesErr", "err", repoErr)
+		}
+	}(userID, shortURLs)
 	w.WriteHeader(responseStatus)
 }

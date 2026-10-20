@@ -137,8 +137,9 @@ func (c *Controller) DeleteResources(ctx context.Context, userID *uuid.UUID, sho
 		tds[i] = toDelete{userID, resource}
 	}
 	merged := fanIn(ctx, fanOut(tds))
+	collected := make([]string, 0, len(shortURLs))
 	for item := range merged {
-		shortURLs = append(shortURLs, item.shortURL)
+		collected = append(collected, item.shortURL)
 	}
-	return c.store.SoftDeleteResources(ctx, userID, shortURLs)
+	return c.store.SoftDeleteResources(ctx, userID, collected)
 }

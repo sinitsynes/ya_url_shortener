@@ -74,6 +74,7 @@ func (pg *Store) GetResourceByShortURL(ctx context.Context, url string) (model.R
 		OriginalURL:   item.OriginalUrl,
 		ShortURL:      item.ShortUrl,
 		CorrelationID: item.CorrelationID,
+		IsDeleted:     item.IsDeleted,
 	}, nil
 }
 
