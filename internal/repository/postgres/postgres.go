@@ -139,6 +139,14 @@ func (pg *Store) GetResourcesByUserID(ctx context.Context, userID *uuid.UUID) ([
 	return out, nil
 }
 
+func (pg *Store) SoftDeleteResources(ctx context.Context, userID *uuid.UUID, shortURLs []string) error {
+	params := storage.SoftDeleteResourcesParams{
+		UserID:    userID,
+		ShortUrls: shortURLs,
+	}
+	return pg.queries.SoftDeleteResources(ctx, params)
+}
+
 // Close возвращает error ради соответствия интерфейсу репозитория.
 func (pg *Store) Close() error {
 	pg.pool.Close()

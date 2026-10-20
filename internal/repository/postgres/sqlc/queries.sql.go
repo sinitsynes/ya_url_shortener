@@ -28,7 +28,15 @@ type CreateBatchParams struct {
 	UserIds        []uuid.UUID
 }
 
-func (q *Queries) CreateBatch(ctx context.Context, arg CreateBatchParams) ([]Resource, error) {
+type CreateBatchRow struct {
+	ID            int32
+	OriginalUrl   string
+	ShortUrl      string
+	CorrelationID *string
+	UserID        *uuid.UUID
+}
+
+func (q *Queries) CreateBatch(ctx context.Context, arg CreateBatchParams) ([]CreateBatchRow, error) {
 	rows, err := q.db.Query(ctx, createBatch,
 		arg.OriginalUrls,
 		arg.ShortUrls,
@@ -39,9 +47,9 @@ func (q *Queries) CreateBatch(ctx context.Context, arg CreateBatchParams) ([]Res
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Resource
+	var items []CreateBatchRow
 	for rows.Next() {
-		var i Resource
+		var i CreateBatchRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OriginalUrl,
@@ -71,9 +79,17 @@ type CreateResourceParams struct {
 	UserID      *uuid.UUID
 }
 
-func (q *Queries) CreateResource(ctx context.Context, arg CreateResourceParams) (Resource, error) {
+type CreateResourceRow struct {
+	ID            int32
+	OriginalUrl   string
+	ShortUrl      string
+	CorrelationID *string
+	UserID        *uuid.UUID
+}
+
+func (q *Queries) CreateResource(ctx context.Context, arg CreateResourceParams) (CreateResourceRow, error) {
 	row := q.db.QueryRow(ctx, createResource, arg.OriginalUrl, arg.ShortUrl, arg.UserID)
-	var i Resource
+	var i CreateResourceRow
 	err := row.Scan(
 		&i.ID,
 		&i.OriginalUrl,
@@ -90,9 +106,17 @@ FROM resource
 WHERE id = $1
 `
 
-func (q *Queries) GetResourceByID(ctx context.Context, id int32) (Resource, error) {
+type GetResourceByIDRow struct {
+	ID            int32
+	OriginalUrl   string
+	ShortUrl      string
+	CorrelationID *string
+	UserID        *uuid.UUID
+}
+
+func (q *Queries) GetResourceByID(ctx context.Context, id int32) (GetResourceByIDRow, error) {
 	row := q.db.QueryRow(ctx, getResourceByID, id)
-	var i Resource
+	var i GetResourceByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.OriginalUrl,
@@ -109,9 +133,17 @@ FROM resource
 WHERE original_url = $1
 `
 
-func (q *Queries) GetResourceByOriginalURL(ctx context.Context, originalUrl string) (Resource, error) {
+type GetResourceByOriginalURLRow struct {
+	ID            int32
+	OriginalUrl   string
+	ShortUrl      string
+	CorrelationID *string
+	UserID        *uuid.UUID
+}
+
+func (q *Queries) GetResourceByOriginalURL(ctx context.Context, originalUrl string) (GetResourceByOriginalURLRow, error) {
 	row := q.db.QueryRow(ctx, getResourceByOriginalURL, originalUrl)
-	var i Resource
+	var i GetResourceByOriginalURLRow
 	err := row.Scan(
 		&i.ID,
 		&i.OriginalUrl,
@@ -128,9 +160,17 @@ FROM resource
 WHERE short_url = $1
 `
 
-func (q *Queries) GetResourceByShortURL(ctx context.Context, shortUrl string) (Resource, error) {
+type GetResourceByShortURLRow struct {
+	ID            int32
+	OriginalUrl   string
+	ShortUrl      string
+	CorrelationID *string
+	UserID        *uuid.UUID
+}
+
+func (q *Queries) GetResourceByShortURL(ctx context.Context, shortUrl string) (GetResourceByShortURLRow, error) {
 	row := q.db.QueryRow(ctx, getResourceByShortURL, shortUrl)
-	var i Resource
+	var i GetResourceByShortURLRow
 	err := row.Scan(
 		&i.ID,
 		&i.OriginalUrl,
@@ -147,15 +187,23 @@ FROM resource
 WHERE user_id = $1
 `
 
-func (q *Queries) GetResourcesByUserID(ctx context.Context, userID *uuid.UUID) ([]Resource, error) {
+type GetResourcesByUserIDRow struct {
+	ID            int32
+	OriginalUrl   string
+	ShortUrl      string
+	CorrelationID *string
+	UserID        *uuid.UUID
+}
+
+func (q *Queries) GetResourcesByUserID(ctx context.Context, userID *uuid.UUID) ([]GetResourcesByUserIDRow, error) {
 	rows, err := q.db.Query(ctx, getResourcesByUserID, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Resource
+	var items []GetResourcesByUserIDRow
 	for rows.Next() {
-		var i Resource
+		var i GetResourcesByUserIDRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OriginalUrl,
@@ -171,4 +219,20 @@ func (q *Queries) GetResourcesByUserID(ctx context.Context, userID *uuid.UUID) (
 		return nil, err
 	}
 	return items, nil
+}
+
+const softDeleteResources = `-- name: SoftDeleteResources :exec
+UPDATE resource
+SET is_deleted = TRUE
+WHERE user_id = $1 AND short_url = ANY($2::TEXT[])
+`
+
+type SoftDeleteResourcesParams struct {
+	UserID    *uuid.UUID
+	ShortUrls []string
+}
+
+func (q *Queries) SoftDeleteResources(ctx context.Context, arg SoftDeleteResourcesParams) error {
+	_, err := q.db.Exec(ctx, softDeleteResources, arg.UserID, arg.ShortUrls)
+	return err
 }

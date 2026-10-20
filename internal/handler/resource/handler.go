@@ -14,6 +14,8 @@ import (
 	"ya_url_shortener/internal/model"
 	"ya_url_shortener/internal/repository"
 	"ya_url_shortener/internal/service"
+
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -32,6 +34,7 @@ type Controller interface {
 		userID *uuid.UUID,
 	) ([]model.ResourceBatchOutput, error)
 	GetResourcesByUser(ctx context.Context, userID *uuid.UUID) ([]model.ResourcesByUser, error)
+	DeleteResources(ctx context.Context, userID *uuid.UUID, shortURLs []string) error
 }
 
 type Handler struct {
@@ -95,6 +98,8 @@ func (h *Handler) CreateURL(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) GetURL(w http.ResponseWriter, r *http.Request) {
 	identifier := r.PathValue("url")
+	status := http.StatusTemporaryRedirect
+
 	if identifier == "" {
 		http.Error(w, "Ошибка чтения идентификатора", http.StatusBadRequest)
 		return
@@ -104,8 +109,11 @@ func (h *Handler) GetURL(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Ошибка получения ресурса", http.StatusNotFound)
 		return
 	}
+	if resource.IsDeleted {
+		status = http.StatusGone
+	}
 	w.Header().Add("Location", resource.OriginalURL)
-	w.WriteHeader(http.StatusTemporaryRedirect)
+	w.WriteHeader(status)
 }
 
 func (h *Handler) ShortenURL(w http.ResponseWriter, r *http.Request) {
@@ -253,4 +261,34 @@ func (h *Handler) GetResourcesByUser(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &authCookie)
 	w.WriteHeader(responseStatus)
 	w.Write(res) //nolint: errcheck,gosec
+}
+
+func (h *Handler) DeleteResources(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	responseStatus := http.StatusAccepted
+	userID, _ := ctx.Value(config.UserIDKey).(uuid.UUID)
+	shortURLs := []string{}
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		h.logger.ErrorContext(ctx, "DeleteResourcesErr", "err", err)
+		http.Error(w, "Ошибка чтения тела запроса", http.StatusBadRequest)
+		return
+	}
+
+	if unmarshalErr := json.Unmarshal(body, &shortURLs); unmarshalErr != nil {
+		h.logger.ErrorContext(ctx, "DeleteResourcesErr", "err", unmarshalErr)
+		http.Error(w, "Ошибка декодирования запроса", http.StatusBadRequest)
+		return
+	}
+	detachedContext := context.Background()
+	var errgroup errgroup.Group
+	errgroup.Go(func() error {
+		return h.controller.DeleteResources(detachedContext, &userID, shortURLs)
+	})
+	if repoErr := errgroup.Wait(); repoErr != nil {
+		h.logger.ErrorContext(detachedContext, "DeleteResourcesErr", "err", repoErr)
+		http.Error(w, "Ошибка удаления ресурсов", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(responseStatus)
 }

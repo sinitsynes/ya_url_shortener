@@ -31,3 +31,9 @@ WHERE original_url = @original_url;
 SELECT id, original_url, short_url, correlation_id, user_id
 FROM resource
 WHERE user_id = @user_id;
+
+-- name: SoftDeleteResources :exec
+UPDATE resource
+SET is_deleted = TRUE
+WHERE user_id = @user_id
+  AND short_url = ANY(@short_urls::TEXT[]);

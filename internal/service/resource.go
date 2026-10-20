@@ -21,6 +21,7 @@ type Repository interface {
 	GetResourceByOriginalURL(context.Context, string) (model.Resource, error)
 	GetResourcesByUserID(context.Context, *uuid.UUID) ([]model.Resource, error)
 	CreateBatch(context.Context, []model.Resource) ([]model.Resource, error)
+	SoftDeleteResources(context.Context, *uuid.UUID, []string) error
 	Close() error
 }
 
@@ -128,4 +129,16 @@ func (c *Controller) GetResourcesByUser(ctx context.Context, userID *uuid.UUID) 
 		}
 	}
 	return out, nil
+}
+
+func (c *Controller) DeleteResources(ctx context.Context, userID *uuid.UUID, shortURLs []string) error {
+	tds := make([]toDelete, len(shortURLs))
+	for i, resource := range shortURLs {
+		tds[i] = toDelete{userID, resource}
+	}
+	merged := fanIn(ctx, fanOut(tds))
+	for item := range merged {
+		shortURLs = append(shortURLs, item.shortURL)
+	}
+	return c.store.SoftDeleteResources(ctx, userID, shortURLs)
 }

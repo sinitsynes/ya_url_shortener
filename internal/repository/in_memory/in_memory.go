@@ -186,6 +186,21 @@ func (s *Store) GetResourcesByUserID(_ context.Context, userID *uuid.UUID) ([]mo
 	return out, nil
 }
 
+func (s *Store) SoftDeleteResources(_ context.Context, userID *uuid.UUID, shortURLs []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, incoming := range shortURLs {
+		for _, stored := range s.store {
+			if stored.UserID == userID && stored.ShortURL == incoming {
+				stored.IsDeleted = true
+				s.store[stored.ID] = stored
+			}
+		}
+	}
+	return nil
+}
+
 func (s *Store) Close() error {
 	if s.fileStorage != nil {
 		if err := s.fileStorage.Close(); err != nil {

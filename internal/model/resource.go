@@ -10,6 +10,7 @@ type (
 		ShortURL      string     `json:"short_url"`
 		CorrelationID *string    `json:"correlation_id,omitempty"`
 		UserID        *uuid.UUID `json:"-"`
+		IsDeleted     bool       `json:"-"`
 	}
 	ResourceInput struct {
 		URL string `json:"url"`

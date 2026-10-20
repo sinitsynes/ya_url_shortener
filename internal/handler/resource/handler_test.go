@@ -61,6 +61,7 @@ type (
 		getFn                func(context.Context, string) (model.Resource, error)
 		createBatchFn        func(context.Context, []model.ResourceBatchInput, *uuid.UUID) ([]model.ResourceBatchOutput, error)
 		getResourcesByUserFn func(context.Context, *uuid.UUID) ([]model.ResourcesByUser, error)
+		deleteResourcesFn    func(context.Context, *uuid.UUID, []string) error
 	}
 )
 
@@ -84,6 +85,14 @@ func (c stubController) GetResourcesByUser(
 	userID *uuid.UUID,
 ) ([]model.ResourcesByUser, error) {
 	return c.getResourcesByUserFn(ctx, userID)
+}
+
+func (c stubController) DeleteResources(
+	ctx context.Context,
+	userID *uuid.UUID,
+	shortURLs []string,
+) error {
+	return c.deleteResourcesFn(ctx, userID, shortURLs)
 }
 
 func testAppConfig() *config.Config {

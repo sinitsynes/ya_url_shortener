@@ -14,4 +14,5 @@ type Resource struct {
 	ShortUrl      string
 	CorrelationID *string
 	UserID        *uuid.UUID
+	IsDeleted     bool
 }
