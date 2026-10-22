@@ -140,10 +140,16 @@ func (pg *Store) GetResourcesByUserID(ctx context.Context, userID *uuid.UUID) ([
 	return out, nil
 }
 
-func (pg *Store) SoftDeleteResources(ctx context.Context, userID *uuid.UUID, shortURLs []string) error {
+func (pg *Store) SoftDeleteResources(ctx context.Context, items []model.ToDelete) error {
+	ids := make([]uuid.UUID, 0, len(items))
+	urls := make([]string, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.UserID)
+		urls = append(urls, item.ShortURL)
+	}
 	params := storage.SoftDeleteResourcesParams{
-		UserID:    userID,
-		ShortUrls: shortURLs,
+		UserIds:   ids,
+		ShortUrls: urls,
 	}
 	return pg.queries.SoftDeleteResources(ctx, params)
 }

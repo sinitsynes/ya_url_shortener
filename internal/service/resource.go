@@ -21,19 +21,24 @@ type Repository interface {
 	GetResourceByOriginalURL(context.Context, string) (model.Resource, error)
 	GetResourcesByUserID(context.Context, *uuid.UUID) ([]model.Resource, error)
 	CreateBatch(context.Context, []model.Resource) ([]model.Resource, error)
-	SoftDeleteResources(context.Context, *uuid.UUID, []string) error
+	SoftDeleteResources(context.Context, []model.ToDelete) error
 	Close() error
 }
 
 type Controller struct {
-	baseURL string
-	store   Repository
+	baseURL  string
+	store    Repository
+	deleteCh chan model.ToDelete
 }
 
 func NewResourceController(baseURL string, repository Repository) *Controller {
-	return &Controller{
-		baseURL: baseURL,
-		store:   repository}
+	c := &Controller{
+		baseURL:  baseURL,
+		store:    repository,
+		deleteCh: make(chan model.ToDelete, deleteBatchSize),
+	}
+	go c.deleteWorker()
+	return c
 }
 
 // withConflictRetry повторяет попытку создания записей,
@@ -132,14 +137,12 @@ func (c *Controller) GetResourcesByUser(ctx context.Context, userID *uuid.UUID) 
 }
 
 func (c *Controller) DeleteResources(ctx context.Context, userID *uuid.UUID, shortURLs []string) error {
-	tds := make([]toDelete, len(shortURLs))
-	for i, resource := range shortURLs {
-		tds[i] = toDelete{userID, resource}
+	for _, shortURL := range shortURLs {
+		select {
+		case <-ctx.Done():
+			return nil
+		case c.deleteCh <- model.ToDelete{UserID: *userID, ShortURL: shortURL}:
+		}
 	}
-	merged := fanIn(ctx, fanOut(tds))
-	collected := make([]string, 0, len(shortURLs))
-	for item := range merged {
-		collected = append(collected, item.shortURL)
-	}
-	return c.store.SoftDeleteResources(ctx, userID, collected)
+	return nil
 }

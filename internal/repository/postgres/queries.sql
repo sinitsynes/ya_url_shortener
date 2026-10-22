@@ -33,7 +33,12 @@ FROM resource
 WHERE user_id = @user_id;
 
 -- name: SoftDeleteResources :exec
-UPDATE resource
+UPDATE resource AS r
 SET is_deleted = TRUE
-WHERE user_id = @user_id
-  AND short_url = ANY(@short_urls::TEXT[]);
+FROM (
+    SELECT
+        UNNEST(@user_ids::UUID[])   AS user_id,
+        UNNEST(@short_urls::TEXT[]) AS short_url
+) AS v
+WHERE r.user_id = v.user_id
+  AND r.short_url = v.short_url;

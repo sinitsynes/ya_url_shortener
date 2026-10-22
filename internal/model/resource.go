@@ -12,6 +12,10 @@ type (
 		UserID        *uuid.UUID `json:"-"`
 		IsDeleted     bool       `json:"-"`
 	}
+	ToDelete struct {
+		UserID   uuid.UUID
+		ShortURL string
+	}
 	ResourceInput struct {
 		URL string `json:"url"`
 	}

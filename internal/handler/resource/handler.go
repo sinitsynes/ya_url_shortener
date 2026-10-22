@@ -82,14 +82,6 @@ func (h *Handler) CreateURL(w http.ResponseWriter, r *http.Request) {
 	}
 	resp := resource.ShortURL
 	w.Header().Set(ContentTypeHeader, ContentTypePlainText)
-	authCookie := http.Cookie{ //nolint:gosec
-		Name:     string(config.UserIDKey),
-		Value:    userID.String(),
-		HttpOnly: true,
-		Secure:   false,
-		SameSite: http.SameSiteLaxMode,
-	}
-	http.SetCookie(w, &authCookie)
 	w.WriteHeader(httpStatus)
 	w.Write([]byte(resp)) //nolint: errcheck,gosec
 }
@@ -162,14 +154,6 @@ func (h *Handler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set(ContentTypeHeader, ContentTypeJSON)
 	w.Header().Set(ContentLengthHeader, strconv.Itoa(len(resp)))
-	authCookie := http.Cookie{ //nolint:gosec
-		Name:     string(config.UserIDKey),
-		Value:    userID.String(),
-		HttpOnly: true,
-		Secure:   false,
-		SameSite: http.SameSiteLaxMode,
-	}
-	http.SetCookie(w, &authCookie)
 	w.WriteHeader(httpStatus)
 	w.Write(resp) //nolint: errcheck,gosec
 }
@@ -219,14 +203,6 @@ func (h *Handler) CreateBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set(ContentTypeHeader, ContentTypeJSON)
-	authCookie := http.Cookie{ //nolint:gosec
-		Name:     string(config.UserIDKey),
-		Value:    userID.String(),
-		HttpOnly: true,
-		Secure:   false,
-		SameSite: http.SameSiteLaxMode,
-	}
-	http.SetCookie(w, &authCookie)
 	w.WriteHeader(http.StatusCreated)
 	w.Write(res) //nolint: errcheck,gosec
 }
@@ -249,21 +225,12 @@ func (h *Handler) GetResourcesByUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set(ContentTypeHeader, ContentTypeJSON)
-	authCookie := http.Cookie{ //nolint:gosec
-		Name:     string(config.UserIDKey),
-		Value:    userID.String(),
-		HttpOnly: true,
-		Secure:   false,
-		SameSite: http.SameSiteLaxMode,
-	}
-	http.SetCookie(w, &authCookie)
 	w.WriteHeader(responseStatus)
 	w.Write(res) //nolint: errcheck,gosec
 }
 
 func (h *Handler) DeleteResources(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	responseStatus := http.StatusAccepted
 	userID, _ := ctx.Value(config.UserIDKey).(uuid.UUID)
 	shortURLs := []string{}
 	body, err := io.ReadAll(r.Body)
@@ -278,10 +245,10 @@ func (h *Handler) DeleteResources(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Ошибка декодирования запроса", http.StatusBadRequest)
 		return
 	}
-	go func(uid uuid.UUID, urls []string) { //nolint: gosec // используем отдельный контекст, несвязанный с запросом
+	go func(uid uuid.UUID, urls []string) { //nolint: gosec
 		if repoErr := h.controller.DeleteResources(context.Background(), &uid, urls); repoErr != nil {
 			h.logger.ErrorContext(r.Context(), "DeleteResourcesErr", "err", repoErr)
 		}
 	}(userID, shortURLs)
-	w.WriteHeader(responseStatus)
+	w.WriteHeader(http.StatusAccepted)
 }

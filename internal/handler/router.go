@@ -16,7 +16,7 @@ const (
 	requestTimeout time.Duration = 3 * time.Second
 )
 
-func NewRouter(logger *slog.Logger, register ...func(chi.Router)) *chi.Mux {
+func NewRouter(logger *slog.Logger, secretKey config.AuthSecretKey, register ...func(chi.Router)) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(ya_middleware.Logger(logger))
 	r.Use(middleware.Recoverer)
@@ -24,7 +24,7 @@ func NewRouter(logger *slog.Logger, register ...func(chi.Router)) *chi.Mux {
 	r.Use(ya_middleware.GzipDecompressor)
 	r.Use(ya_middleware.GzipCompressor)
 	r.Use(ya_middleware.LimitMaxRequestSize(maxRequestSize))
-	r.Use(ya_middleware.CookieAuth(config.UserIDKey, logger))
+	r.Use(ya_middleware.CookieAuth(config.UserIDKey, secretKey, logger))
 
 	for _, fn := range register {
 		fn(r)

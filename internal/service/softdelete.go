@@ -2,47 +2,26 @@ package service
 
 import (
 	"context"
-	"sync"
-	"uuid"
+
+	"ya_url_shortener/internal/model"
 )
 
-type toDelete struct {
-	userID   *uuid.UUID
-	shortURL string
-}
+const deleteBatchSize int = 50
 
-func fanOut(resources []toDelete) []chan toDelete {
-	chans := make([]chan toDelete, len(resources))
-	for i, resource := range resources {
-		ch := make(chan toDelete)
-		chans[i] = ch
-		go func(r toDelete) {
-			ch <- r
-			close(ch)
-		}(resource)
+func (c *Controller) deleteWorker() {
+	buffer := make([]model.ToDelete, 0, deleteBatchSize)
+	flush := func() {
+		if len(buffer) == 0 {
+			return
+		}
+		_ = c.store.SoftDeleteResources(context.Background(), buffer)
+		buffer = buffer[:0]
 	}
-	return chans
-}
-
-func fanIn(ctx context.Context, deleteCh []chan toDelete) chan toDelete {
-	resultCh := make(chan toDelete)
-	var wg sync.WaitGroup
-
-	for _, ch := range deleteCh {
-		chClosure := ch
-		wg.Go(func() {
-			for data := range chClosure {
-				select {
-				case <-ctx.Done():
-					return
-				case resultCh <- data:
-				}
-			}
-		})
+	for item := range c.deleteCh {
+		buffer = append(buffer, item)
+		if len(buffer) == deleteBatchSize {
+			flush()
+		}
 	}
-	go func() {
-		wg.Wait()
-		close(resultCh)
-	}()
-	return resultCh
+	flush()
 }

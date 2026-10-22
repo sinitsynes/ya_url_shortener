@@ -52,7 +52,7 @@ func run(logger *slog.Logger) error {
 	rHandler := resource.NewResourceHandler(controller, logger)
 	// хэлсчек БД
 	hHandler := healthcheck.NewHandler(pinger, logger)
-	baseRouter := handler.NewRouter(logger,
+	baseRouter := handler.NewRouter(logger, settings.SecretKey,
 		func(r chi.Router) { healthcheck.RegisterRoutes(r, hHandler) },
 		func(r chi.Router) { resource.RegisterRoutes(r, rHandler) },
 	)

@@ -215,18 +215,23 @@ func (q *Queries) GetResourcesByUserID(ctx context.Context, userID *uuid.UUID) (
 }
 
 const softDeleteResources = `-- name: SoftDeleteResources :exec
-UPDATE resource
+UPDATE resource AS r
 SET is_deleted = TRUE
-WHERE user_id = $1
-  AND short_url = ANY($2::TEXT[])
+FROM (
+    SELECT
+        UNNEST($1::UUID[])   AS user_id,
+        UNNEST($2::TEXT[]) AS short_url
+) AS v
+WHERE r.user_id = v.user_id
+  AND r.short_url = v.short_url
 `
 
 type SoftDeleteResourcesParams struct {
-	UserID    *uuid.UUID
+	UserIds   []uuid.UUID
 	ShortUrls []string
 }
 
 func (q *Queries) SoftDeleteResources(ctx context.Context, arg SoftDeleteResourcesParams) error {
-	_, err := q.db.Exec(ctx, softDeleteResources, arg.UserID, arg.ShortUrls)
+	_, err := q.db.Exec(ctx, softDeleteResources, arg.UserIds, arg.ShortUrls)
 	return err
 }

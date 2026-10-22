@@ -186,13 +186,13 @@ func (s *Store) GetResourcesByUserID(_ context.Context, userID *uuid.UUID) ([]mo
 	return out, nil
 }
 
-func (s *Store) SoftDeleteResources(_ context.Context, userID *uuid.UUID, shortURLs []string) error {
+func (s *Store) SoftDeleteResources(_ context.Context, items []model.ToDelete) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	for _, incoming := range shortURLs {
+	for _, incoming := range items {
 		for _, stored := range s.store {
-			if stored.UserID == userID && stored.ShortURL == incoming {
+			if stored.UserID == &incoming.UserID && stored.ShortURL == incoming.ShortURL {
 				stored.IsDeleted = true
 				s.store[stored.ID] = stored
 			}
