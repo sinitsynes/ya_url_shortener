@@ -26,16 +26,18 @@ type Repository interface {
 }
 
 type Controller struct {
-	baseURL  string
-	store    Repository
-	deleteCh chan model.ToDelete
+	baseURL    string
+	store      Repository
+	deleteCh   chan model.ToDelete
+	deleteDone chan struct{}
 }
 
 func NewResourceController(baseURL string, repository Repository) *Controller {
 	c := &Controller{
-		baseURL:  baseURL,
-		store:    repository,
-		deleteCh: make(chan model.ToDelete, deleteBatchSize),
+		baseURL:    baseURL,
+		store:      repository,
+		deleteCh:   make(chan model.ToDelete, deleteBatchSize),
+		deleteDone: make(chan struct{}),
 	}
 	go c.deleteWorker()
 	return c
@@ -136,6 +138,9 @@ func (c *Controller) GetResourcesByUser(ctx context.Context, userID *uuid.UUID) 
 	return out, nil
 }
 
+// DeleteResources удаляет ресурсы в отдельной очереди:
+// - либо по достижению батча в 50 ссылок
+// - либо по таймеру: если одна ссылка лежит долго в очереди, то через секунду ее удалим.
 func (c *Controller) DeleteResources(ctx context.Context, userID *uuid.UUID, shortURLs []string) error {
 	for _, shortURL := range shortURLs {
 		select {
